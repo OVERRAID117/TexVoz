@@ -1338,3 +1338,261 @@
 @media (max-width: 580px) {
   .adBelowBtn { margin-left: 16px; margin-right: 16px; }
 }
+/* ══════════════════════════════════════
+   FIX REAL STICKY ADS (NO ROMPE DISEÑO)
+══════════════════════════════════════ */
+/* FIX STICKY ADS REAL */
+/* FIX STICKY ADS DEFINITIVO */
+/* ════════════════════════════════════════
+   FIX DEFINITIVO ADS STICKY (SCROLL REAL)
+   (PEGAR AL FINAL DEL CSS)
+════════════════════════════════════════ */
+
+/* El contenedor principal debe permitir sticky */
+.pageLayout {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  position: relative;
+
+  overflow: visible !important;
+}
+
+/* Centro NO debe cortar sticky */
+.pageCenter {
+  flex: 1;
+  min-width: 0;
+  max-width: 728px;
+
+  overflow: visible !important;
+}
+
+/* Columnas laterales deben ser "largas" */
+.adSideLeft,
+.adSideRight {
+  width: 160px;
+  flex-shrink: 0;
+
+  display: none; /* oculto móvil */
+  overflow: visible !important;
+
+  align-self: stretch; /* 🔥 CLAVE: hace que midan lo mismo que el centro */
+}
+
+/* separación */
+.adSideLeft {
+  padding-right: 16px;
+}
+.adSideRight {
+  padding-left: 16px;
+}
+
+/* Desktop */
+@media (min-width: 1100px) {
+  .adSideLeft,
+  .adSideRight {
+    display: block;
+  }
+}
+.btnPreview:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+
+/* Sticky REAL */
+.adSideBox {
+  position: sticky !important;
+  top: 90px !important;
+
+  width: 160px;
+  height: 400px;
+
+  background: #fafaf8;
+  border: 1.5px dashed #d8d4cc;
+  border-radius: 12px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  text-align: center;
+  padding: 12px;
+
+  z-index: 50;
+}
+
+/* Oculta el botón de descarga del audio (3 puntitos) cuando ya no hay usos */
+.audioNoDownload::-webkit-media-controls-enclosure {
+  overflow: hidden;
+}
+
+.audioNoDownload::-webkit-media-controls-download-button {
+  display: none !important;
+}
+
+.audioNoDownload::-webkit-media-controls-overflow-button {
+  display: none !important;
+}
+/* ── BOTÓN NARANJA — sin usos gratis disponibles ── */
+.btnGenerateOrange {
+  width: 100%;
+  padding: 18px;
+  border: none;
+  border-radius: 14px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #ff8c00, #ff5f00);
+  color: #fff;
+  box-shadow: 0 6px 24px rgba(255,100,0,.35);
+  letter-spacing: .3px;
+}
+.btnGenerateOrange:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(255,100,0,.4);
+}
+.btnGenerateOrange:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ══════════════════════════════════════════════════════
+   FREE PLAYER — Web Audio API
+   Diseño: fondo blanco, borde suave, mint accent
+══════════════════════════════════════════════════════ */
+.freePlayer {
+  margin: 0 0 0;
+  background: #fff;
+  border-top: 1px solid #e8e4dc;
+  padding: 16px 20px 14px;
+}
+
+/* Fila principal: retroceder | play | adelantar | reiniciar */
+.freePlayerRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Botón play/pause — círculo grande verde */
+.freePlayBtn {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  background: #00c9a7;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .18s, transform .18s, box-shadow .18s;
+  box-shadow: 0 3px 12px rgba(0,201,167,.30);
+}
+.freePlayBtn:hover {
+  background: #00a88c;
+  transform: scale(1.07);
+  box-shadow: 0 5px 18px rgba(0,201,167,.38);
+}
+.freePlayBtn:active { transform: scale(.97); }
+
+/* Botones de salto: «10s / 10s» */
+.freeSeekBtn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 10px;
+  background: #f5f3ee;
+  border: 1.5px solid #e8e4dc;
+  border-radius: 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #4a4a6a;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+}
+.freeSeekBtn:hover {
+  background: #e6faf6;
+  border-color: #b3f0e5;
+  color: #009e88;
+}
+
+.freeSeekIcon { font-size: 14px; line-height: 1; }
+.freeSeekLabel { font-size: 11px; line-height: 1; }
+
+/* Botón reiniciar — círculo pequeño */
+.freeRestartBtn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1.5px solid #e8e4dc;
+  border-radius: 50%;
+  color: #9090aa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .18s;
+}
+.freeRestartBtn:hover {
+  border-color: #00c9a7;
+  color: #009e88;
+  background: #e6faf6;
+}
+
+/* Área de progreso */
+.freeProgressArea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.freeProgressBar {
+  flex: 1;
+  height: 5px;
+  background: #e8e4dc;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.freeProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #00c9a7, #00a88c);
+  border-radius: 3px;
+  transition: width .08s linear;
+}
+
+.freeTime {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9090aa;
+  white-space: nowrap;
+  min-width: 68px;
+  text-align: right;
+}
+
+.freePlayerNote {
+  font-size: 11px;
+  color: #b0aaa0;
+  text-align: center;
+  margin-top: 10px;
+  font-weight: 600;
+  letter-spacing: .2px;
+}
