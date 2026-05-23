@@ -1,5 +1,4 @@
-console.log('📌 Variable existe?', !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64)
-console.log('📌 Primeros 50 chars:', process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64?.substring(0, 50))
+
 import { NextRequest, NextResponse } from 'next/server'
 import TextToSpeech from '@google-cloud/text-to-speech'
 import { Redis } from '@upstash/redis'
@@ -11,8 +10,8 @@ const DAILY_LIMIT = 3
 const COOLDOWN_SECONDS = 20
 
 function getClient() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64
-  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 no está definida')
+  const raw = process.env.GCP_CREDENTIALS
+  if (!raw) throw new Error('GCP_CREDENTIALS no está definida')
 
   const credentials = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'))
   return new TextToSpeech.TextToSpeechClient({ credentials })
