@@ -1,3 +1,5 @@
+console.log('📌 Variable existe?', !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64)
+console.log('📌 Primeros 50 chars:', process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64?.substring(0, 50))
 import { NextRequest, NextResponse } from 'next/server'
 import TextToSpeech from '@google-cloud/text-to-speech'
 import { Redis } from '@upstash/redis'
