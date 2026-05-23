@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import TextToSpeech from "@google-cloud/text-to-speech"
 
 function getClient() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64
-  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 no está definida")
+  const raw = process.env.GCP_CREDENTIALS
+ if (!raw) throw new Error('GCP_CREDENTIALS no está definida')
 
   const credentials = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"))
 
