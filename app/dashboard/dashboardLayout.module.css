@@ -1,0 +1,297 @@
+/* ═══════════════════════════════════════════════════════════
+   DASHBOARD LAYOUT — VozEstudio
+   Sidebar + Header + estructura compartida de /dashboard.
+   Independiente de dashboard.module.css (ese es del contenido).
+   ═══════════════════════════════════════════════════════════ */
+
+.loadingShell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Nunito', sans-serif;
+  color: #9090aa;
+  background: #f5f3ee;
+}
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f5f3ee;
+  font-family: 'Nunito', sans-serif;
+}
+
+/* ── Sidebar ── */
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #e8e4dc;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 12px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  transition: width .2s ease;
+  z-index: 100;
+}
+
+.sidebarCollapsed {
+  width: 76px;
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebarLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: #4a4a6a;
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background .15s, color .15s;
+}
+
+.sidebarLink:hover {
+  background: #f5f3ee;
+  color: #1a1a2e;
+}
+
+.sidebarLinkActive {
+  background: #e6faf5;
+  color: #009e88;
+}
+
+.sidebarLinkDisabled {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #c4c4d0;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: not-allowed;
+}
+
+.sidebarIcon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+
+.sidebarLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebarLabelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sidebarBadge {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #b8860b;
+  background: #fff8e6;
+  border: 1px solid #ffd970;
+  border-radius: 8px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.collapseButton {
+  border: 1px solid #e8e4dc;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9090aa;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+}
+
+.collapseButton:hover {
+  background: #f5f3ee;
+  color: #4a4a6a;
+}
+
+/* ── Overlay móvil ── */
+
+.mobileOverlay {
+  display: none;
+}
+
+/* ── Área de contenido (Header + main) ── */
+
+.contentArea {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ── */
+
+.header {
+  height: 64px;
+  background: #fff;
+  border-bottom: 1px solid #e8e4dc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerLogo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Instrument Serif', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a2e;
+  text-decoration: none;
+}
+
+.headerLogoDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #00c9a7;
+  flex-shrink: 0;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.headerUser {
+  font-size: 13px;
+  color: #6b6b8a;
+  font-weight: 700;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerLogoutButton {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e8e4dc;
+  background: #f5f3ee;
+  color: #4a4a6a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+}
+
+.headerLogoutButton:hover {
+  background: #efece4;
+}
+
+.mobileMenuButton {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.hamburgerLine {
+  width: 20px;
+  height: 2px;
+  background: #1a1a2e;
+  border-radius: 2px;
+}
+
+/* ── Contenido principal ── */
+
+.main {
+  flex: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MÓVIL
+   ═══════════════════════════════════════════════════════════ */
+
+@media (max-width: 880px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    z-index: 300;
+    box-shadow: 0 0 40px rgba(0,0,0,0.15);
+  }
+
+  .sidebarMobileOpen {
+    transform: translateX(0);
+    width: 240px;
+  }
+
+  .collapseButton {
+    display: none;
+  }
+
+  .mobileOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 250;
+  }
+
+  .contentArea {
+    width: 100%;
+  }
+
+  .mobileMenuButton {
+    display: flex;
+  }
+
+  .headerUser {
+    display: none;
+  }
+}

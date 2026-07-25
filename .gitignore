@@ -1,0 +1,15 @@
+.env
+.env.local
+.env*.local
+node_modules/
+.next/
+out/
+*.log
+
+/lib/generated/prisma
+# Google Cloud
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!next.config.js
