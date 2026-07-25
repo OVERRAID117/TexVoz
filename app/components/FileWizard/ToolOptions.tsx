@@ -3,10 +3,10 @@
 import type { Dispatch, SetStateAction } from 'react'
 import ExplainOptions from './ExplainOptions'
 import SummaryOptions from './SummaryOptions'
-import QuestionOptions from './QuestionOptions'
+
 import StudyGuideOptions from './StudyGuideOptions'
 import AnalyzeOptions from './AnalyzeOptions'
-import type { ExplainLevel, GuideType, QuestionTypes, AnalysisOptions } from './types'
+import type { ExplainLevel, GuideType, AnalysisOptions } from './types'
 
 type Props = {
   iaMode: number
@@ -14,9 +14,7 @@ type Props = {
   setExtension: Dispatch<SetStateAction<number>>
   explainLevel: ExplainLevel
   setExplainLevel: Dispatch<SetStateAction<ExplainLevel>>
-  questionTypes: QuestionTypes
-  setQuestionTypes: Dispatch<SetStateAction<QuestionTypes>>
-  guideType: GuideType
+    guideType: GuideType
   setGuideType: Dispatch<SetStateAction<GuideType>>
   analysisOptions: AnalysisOptions
   setAnalysisOptions: Dispatch<SetStateAction<AnalysisOptions>>
@@ -27,7 +25,6 @@ export default function ToolOptions({
   iaMode,
   extension, setExtension,
   explainLevel, setExplainLevel,
-  questionTypes, setQuestionTypes,
   guideType, setGuideType,
   analysisOptions, setAnalysisOptions,
 }: Props) {
@@ -36,11 +33,10 @@ export default function ToolOptions({
       return <ExplainOptions explainLevel={explainLevel} setExplainLevel={setExplainLevel} />
     case 1:
       return <SummaryOptions extension={extension} setExtension={setExtension} />
+    
     case 2:
-      return <QuestionOptions questionTypes={questionTypes} setQuestionTypes={setQuestionTypes} />
-    case 3:
       return <StudyGuideOptions guideType={guideType} setGuideType={setGuideType} />
-    case 4:
+    case 3:
       return <AnalyzeOptions analysisOptions={analysisOptions} setAnalysisOptions={setAnalysisOptions} />
     default:
       return <ExplainOptions explainLevel={explainLevel} setExplainLevel={setExplainLevel} />
