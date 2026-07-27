@@ -105,6 +105,7 @@ type PendingHistoryData = {
   resultText:   string
   mode:         number
   length:       number
+  historyId:    string
 }
 
 // Forma real de una fila de document_history, tal como la devuelve Supabase
@@ -139,21 +140,18 @@ async function saveToHistory(params: PendingHistoryData & {
 
     const { data, error } = await supabase
       .from('document_history')
-      .insert({
-        user_id:         user.id,
-        file_name:       params.fileName,
-        original_text:   params.originalText,
+      .update({
         result_text:     params.resultText,
-        mode:            getModeLabel(params.mode),
-        result_length:   getLengthLabel(params.length),
         output_format:   params.outputFormat   ?? null,
         output_filename: params.outputFilename ?? null,
       })
+      .eq('id', params.historyId)
+      .eq('user_id', user.id)
       .select()
       .single()
 
     if (error) {
-      console.error('[document_history insert error]', error)
+      console.error('[document_history update error]', error)
       return null
     }
     return data as HistoryRow
@@ -299,6 +297,7 @@ const iaOutputCost = iaOutputChars > 0
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: originalText,
+          fileName: file.name,
           mode: iaMode,
           extension: finalExtension,
         }),
@@ -309,9 +308,15 @@ const iaOutputCost = iaOutputChars > 0
       /\[P(\d+)-L(\d+)\]/g,
       '📄 Página $1 · Línea $2'
       )
-      
+
       if (iaData.error) {
         alert(iaData.error)
+        setLoading(false)
+        return
+      }
+
+      if (!iaRes.ok || typeof iaData.historyId !== 'string' || !iaData.historyId) {
+        alert('No se pudo registrar correctamente el documento.')
         setLoading(false)
         return
       }
@@ -323,6 +328,7 @@ const iaOutputCost = iaOutputChars > 0
         resultText:   formattedResult,
         mode:         iaMode,
         length:       finalExtension,
+        historyId:    iaData.historyId,
       }
 
       // ============================================

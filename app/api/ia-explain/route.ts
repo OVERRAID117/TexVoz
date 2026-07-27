@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PromptBuilder } from "@/core/prompt/PromptBuilder";
+import { checkAuth } from "@/lib/supabaseServer";
+import { getActiveSubscription, getPeriodUsage, estimatePageCount, recordUsage } from "@/lib/planUsage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -9,10 +11,6 @@ const CHUNK_SIZE = 18_000;
 const CHUNK_OVERLAP = 600;
 
 // ── Herramientas oficiales (Biblia FASE 3) ──────────────────────────────────
-// El orden coincide con el índice numérico "mode"/"iaMode" que el frontend
-// actual todavía envía (compatibilidad temporal, ver Biblia FASE 5).
-// Únicamente "summary" (Resúmelo) tiene configuración. Las demás son 100%
-// automáticas — el motor decide todo internamente (Biblia FASE 3).
 const TOOLS = ["explain", "summary", "questions", "study-guide", "analyze"] as const;
 type Tool = (typeof TOOLS)[number];
 
@@ -24,14 +22,30 @@ const TOOL_DISPLAY_NAMES: Record<Tool, string> = {
   analyze: "Analizar Documento",
 };
 
-// ── Configuración — únicamente existe para Resúmelo ────────────────────────
+// Mismas etiquetas que ya usa el cliente (FileWizard) para mode/result_length,
+// mapeadas explícitamente por tool (las 5 herramientas actuales no coinciden
+// 1:1 en cantidad con las 4 etiquetas legado por posición).
+const TOOL_MODE_LABELS: Record<Tool, string> = {
+  explain: "explicar",
+  summary: "resumir",
+  questions: "preguntas",
+  "study-guide": "guia-estudio",
+  analyze: "analizar",
+};
+const LENGTH_LABELS: Record<number, string> = { 0.25: "corto", 0.5: "medio", 0.75: "largo", 1: "completo" };
+
+function resolveModeLabel(tool: Tool): string {
+  return TOOL_MODE_LABELS[tool];
+}
+
+function resolveResultLengthLabel(body: RequestBody): string {
+  const extension = Number(body.extension);
+  return LENGTH_LABELS[extension] ?? "medio";
+}
+
 const SUMMARY_LENGTHS = ["short", "medium", "long"] as const;
 type SummaryLength = (typeof SUMMARY_LENGTHS)[number];
 
-// Solo Resúmelo controla longitud objetivo (Biblia FASE 3, Herramienta 2).
-// Estos valores NUNCA se interpretan como porcentaje del documento — se usan
-// únicamente como umbral interno de seguridad (ver expandIfTooShort), nunca
-// como instrucción de longitud enviada al modelo.
 const SUMMARY_TARGET_RATIO: Record<SummaryLength, number> = {
   short: 0.25,
   medium: 0.5,
@@ -40,8 +54,6 @@ const SUMMARY_TARGET_RATIO: Record<SummaryLength, number> = {
 
 const SUMMARY_TOLERANCE = { min: 0.8, max: 1.2 };
 
-// Regla cualitativa real de cada extensión — esto es lo que controla
-// la diferencia entre Corto/Medio/Largo, no un conteo de caracteres.
 const SUMMARY_LENGTH_RULES: Record<SummaryLength, string> = {
   short:
     "Elimina ejemplos, explicaciones secundarias, repeticiones y detalles menores. Conserva únicamente la idea central, los puntos esenciales y la conclusión. El resultado debe sentirse claramente breve — nunca expliques el desarrollo completo, solo el núcleo.",
@@ -51,23 +63,17 @@ const SUMMARY_LENGTH_RULES: Record<SummaryLength, string> = {
     "Conserva casi todos los puntos relevantes del documento. Elimina únicamente repeticiones, relleno y detalles poco útiles — no elimines desarrollo, contexto ni matices importantes.",
 };
 
-// Umbral de re-inflado (expandIfTooShort) — distinto por extensión.
-// short:  null  → nunca se re-infla, un resumen corto real no es un error.
-// medium: 0.55  → más laxo que antes (antes 0.8 para todas por igual).
-// long:   0.8   → sin cambio respecto al comportamiento anterior.
 const SUMMARY_EXPAND_FLOOR_RATIO: Record<SummaryLength, number | null> = {
   short: null,
   medium: 0.55,
   long: 0.8,
 };
 
-// ── Forma cruda del body — puede llegar en formato nuevo o legado ──────────
 interface RequestBody {
   text?: unknown;
-  // Formato legado (frontend actual)
+  fileName?: unknown;
   mode?: unknown;
   extension?: unknown;
-  // Formato nuevo (una vez conectado el frontend, Biblia FASE 5)
   tool?: unknown;
   summaryLength?: unknown;
 }
@@ -80,7 +86,6 @@ type DeepSeekResponse = {
   }>;
 };
 
-// ── Chunking (sin cambios) ──────────────────────────────────────────────────
 function splitText(text: string, chunkSize = CHUNK_SIZE, overlap = CHUNK_OVERLAP): string[] {
   const clean = text.trim();
   if (clean.length <= chunkSize) return [clean];
@@ -114,7 +119,6 @@ function splitText(text: string, chunkSize = CHUNK_SIZE, overlap = CHUNK_OVERLAP
   return chunks.filter(Boolean);
 }
 
-// ── Resolución de la herramienta (nueva o legado por posición de "mode") ───
 function isValidTool(value: unknown): value is Tool {
   return typeof value === "string" && (TOOLS as readonly string[]).includes(value);
 }
@@ -130,7 +134,6 @@ function resolveTool(body: RequestBody): Tool | null {
   return null;
 }
 
-// ── Configuración de Resúmelo — única herramienta configurable ────────────
 function extensionToSummaryLength(extension: number): SummaryLength {
   if (extension <= 0.25) return "short";
   if (extension >= 0.75) return "long";
@@ -142,8 +145,6 @@ function resolveSummaryLength(body: RequestBody): SummaryLength {
     return body.summaryLength as SummaryLength;
   }
 
-  // Compatibilidad temporal: el frontend actual todavía envía "extension" numérica.
-  // Se traduce, nunca se trata como porcentaje real (Biblia FASE 3, Herramienta 2).
   const legacyExtension = Number(body.extension);
   if (Number.isFinite(legacyExtension) && legacyExtension > 0) {
     return extensionToSummaryLength(legacyExtension);
@@ -152,13 +153,10 @@ function resolveSummaryLength(body: RequestBody): SummaryLength {
   return "medium";
 }
 
-// {{CONFIGURACION}} solo tiene contenido real para Resúmelo. Las demás
-// herramientas la reciben vacía — el motor decide todo automáticamente.
 function buildConfiguracion(tool: Tool, summaryLength: SummaryLength): string {
   return tool === "summary" ? `Extensión: ${summaryLength}` : "";
 }
 
-// ── Instrucción por fragmento ────────────────────────────────────────────
 interface LengthTarget {
   targetChars: number;
   minChars: number;
@@ -236,7 +234,6 @@ async function callDeepSeek(systemContent: string, userContent: string): Promise
   return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
-// Corrección automática de longitud — únicamente aplica a Resúmelo.
 async function expandIfTooShort(params: {
   systemContent: string;
   chunk: string;
@@ -273,6 +270,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestBody;
     const text = typeof body.text === "string" ? body.text.trim() : "";
+    const fileName = typeof body.fileName === "string" && body.fileName.trim() ? body.fileName.trim() : "documento";
 
     if (!text) {
       return NextResponse.json({ error: "Falta el texto a procesar." }, { status: 400 });
@@ -288,6 +286,85 @@ export async function POST(req: NextRequest) {
 
     if (!process.env.DEEPSEEK_API_KEY) {
       return NextResponse.json({ error: "Falta DEEPSEEK_API_KEY." }, { status: 500 });
+    }
+
+    // ── Sesión obligatoria ──────────────────────────────────────────────
+    const auth = await checkAuth(req);
+    if (auth.status === "error") {
+      console.error("[ia-explain AUTH CONFIG ERROR]", auth.message);
+      return NextResponse.json({ error: "Error de configuración del servidor." }, { status: 500 });
+    }
+    if (auth.status !== "ok") {
+      return NextResponse.json(
+        { error: "Debes iniciar sesión para usar esta herramienta." },
+        { status: 401 }
+      );
+    }
+    const userId = auth.userId;
+
+    // ── Plan y cuota — falla cerrado ─────────────────────────────────────
+    let subscription;
+    try {
+      subscription = await getActiveSubscription(userId);
+    } catch (err) {
+      console.error("[ia-explain SUBSCRIPTION ERROR]", err);
+      return NextResponse.json(
+        { error: "No se pudo verificar tu plan. Intenta de nuevo en unos momentos." },
+        { status: 503 }
+      );
+    }
+
+    if (!subscription) {
+      return NextResponse.json({ error: "No tienes un plan activo." }, { status: 403 });
+    }
+
+    const pageCount = estimatePageCount(text);
+
+    if (
+      subscription.limits.maxPagesPerDoc !== null &&
+      pageCount > subscription.limits.maxPagesPerDoc
+    ) {
+      return NextResponse.json(
+        {
+          error: `El documento supera el máximo de ${subscription.limits.maxPagesPerDoc} páginas por documento de tu plan.`,
+        },
+        { status: 403 }
+      );
+    }
+
+    let usage;
+    try {
+      usage = await getPeriodUsage(userId, subscription.periodStart, subscription.periodEnd);
+    } catch (err) {
+      console.error("[ia-explain USAGE ERROR]", err);
+      return NextResponse.json(
+        { error: "No se pudo verificar tu consumo. Intenta de nuevo en unos momentos." },
+        { status: 503 }
+      );
+    }
+
+    // TODO: validación no atómica — dos requests simultáneas del mismo usuario
+    // podrían leer el mismo `usage` y ambas pasar antes de que cualquiera
+    // inserte su fila en document_history. Migrar a una función SQL/RPC
+    // transaccional antes de producción.
+    if (
+      subscription.limits.maxDocsMonthly !== null &&
+      usage.docsUsed + 1 > subscription.limits.maxDocsMonthly
+    ) {
+      return NextResponse.json(
+        { error: "Alcanzaste el límite de documentos de este periodo." },
+        { status: 403 }
+      );
+    }
+
+    if (
+      subscription.limits.maxPagesMonthly !== null &&
+      usage.pagesUsed + pageCount > subscription.limits.maxPagesMonthly
+    ) {
+      return NextResponse.json(
+        { error: "Alcanzaste el límite de páginas de este periodo." },
+        { status: 403 }
+      );
     }
 
     const summaryLength = resolveSummaryLength(body);
@@ -364,6 +441,27 @@ export async function POST(req: NextRequest) {
 
     const result = outputs.join("\n\n");
 
+    // ── Registro de uso — solo tras éxito de DeepSeek, nunca antes ──────
+    let historyId: string;
+    try {
+      const saved = await recordUsage({
+        userId,
+        fileName,
+        originalText: text,
+        resultText: result,
+        mode: resolveModeLabel(tool),
+        resultLength: resolveResultLengthLabel(body),
+        pageCount,
+      });
+      historyId = saved.id;
+    } catch (err) {
+      console.error("[ia-explain RECORD USAGE ERROR]", err);
+      return NextResponse.json(
+        { error: "El documento se generó pero no se pudo registrar el uso. Intenta de nuevo." },
+        { status: 500 }
+      );
+    }
+
     const response: Record<string, unknown> = {
       result,
       resultChars: result.length,
@@ -371,7 +469,8 @@ export async function POST(req: NextRequest) {
       chunksProcessed: chunks.length,
       tool,
       configuracion,
-      // Compatibilidad: el frontend actual todavía puede leer "mode" numérico.
+      historyId,
+      pageCount,
       mode: TOOLS.indexOf(tool),
     };
 
@@ -388,10 +487,7 @@ export async function POST(req: NextRequest) {
     console.error("[ia-explain ERROR]", error);
 
     return NextResponse.json(
-      {
-        error: "Error al procesar el documento con la IA.",
-        detail: error instanceof Error ? error.message : "Error desconocido",
-      },
+      { error: "Error al procesar el documento con la IA." },
       { status: 500 }
     );
   }
