@@ -135,26 +135,41 @@ async function saveToHistory(params: PendingHistoryData & {
   outputFilename?: string | null
 }): Promise<HistoryRow | null> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return null
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
 
-    const { data, error } = await supabase
-      .from('document_history')
-      .update({
-        result_text:     params.resultText,
-        output_format:   params.outputFormat   ?? null,
-        output_filename: params.outputFilename ?? null,
-      })
-      .eq('id', params.historyId)
-      .eq('user_id', user.id)
-      .select()
-      .single()
+    const res = await fetch('/api/document-history/finalize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        historyId:       params.historyId,
+        resultText:      params.resultText,
+        outputFormat:    params.outputFormat   ?? null,
+        outputFilename:  params.outputFilename ?? null,
+      }),
+    })
 
-    if (error) {
-      console.error('[document_history update error]', error)
+    const data = await res.json()
+
+    if (!res.ok || !data.success) {
+      console.error('[document-history finalize error]', data)
       return null
     }
-    return data as HistoryRow
+
+    return {
+      id:              data.historyId,
+      user_id:         session.user.id,
+      file_name:       params.fileName,
+      result_text:     params.resultText,
+      mode:            getModeLabel(params.mode),
+      result_length:   getLengthLabel(params.length),
+      output_format:   params.outputFormat   ?? null,
+      output_filename: params.outputFilename ?? null,
+      created_at:      data.createdAt,
+    }
   } catch (err) {
     console.error('[saveToHistory error]', err)
     return null
@@ -292,9 +307,19 @@ const iaOutputCost = iaOutputChars > 0
       if (iaMode === 2) finalExtension = 1.0
       if (iaMode === 3) finalExtension = 1.0
 
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Debes iniciar sesión para usar esta herramienta.')
+        setLoading(false)
+        return
+      }
+
       const iaRes = await fetch('/api/ia-explain', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           text: originalText,
           fileName: file.name,
