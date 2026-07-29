@@ -332,33 +332,41 @@ Lo único que se hace ahora, a nivel de tipos, es dejar espacio: `DocumentHistor
 
 ## 14. Fases de implementación
 
-### Fase A — Tipos y consulta básica paginada
+### Fase A — Tipos y consulta básica paginada — ✅ Completada
 **Objetivo**: introducir `DocumentHistorySummary`/`DocumentHistoryDetail` y una función de fetch paginado (metadatos únicamente), sin cambiar todavía la UI visible.
 **Archivos probables**: nuevo archivo de tipos compartido; función de fetch nueva (junto a `dashboard/page.tsx` o en un helper propio).
 **Riesgos**: bajo — no cambia comportamiento visible.
 **Prueba manual**: confirmar en consola/logs que la consulta trae solo metadatos y respeta `.range()`.
 **Criterio de aceptación**: `tsc`/`next build` sin errores; la función nueva coexiste con la actual sin reemplazarla todavía.
 
-### Fase B — Listado del historial paginado
+**Resumen de lo implementado y verificado:** se creó `lib/documentHistory.ts` con `DocumentHistorySummary`, `DocumentHistoryDetail`, `PaginatedResult<T>`, `HISTORY_PAGE_SIZE` (20) y `fetchDocumentHistoryPage()` — `page`/`pageSize` normalizados (entero, mínimo 1, `pageSize` acotado a 100), `.range()` + `count: "exact"`, filtro explícito por `user_id`, orden `created_at` descendente, sin `original_text`/`result_text` en el select. No se conectó a `page.tsx` en esta fase. `tsc --noEmit` y `next build` con exit code 0.
+
+### Fase B — Listado del historial paginado — ✅ Completada
 **Objetivo**: reemplazar el fetch actual por el paginado; tarjetas muestran `page_count` con fallback `—`.
 **Archivos probables**: `app/dashboard/page.tsx`, posible `HistoryCard` nuevo.
 **Riesgos**: cambiar el fetch podría romper el callback `onSaved` (inserción optimista de `FileWizard` al historial) si no se concilia con la paginación — revisar cómo conviven "documento recién creado" y "página 1 ya cargada".
 **Prueba manual**: generar un documento nuevo y confirmar que aparece sin duplicarse ni desordenar la paginación; navegar entre páginas.
 **Criterio de aceptación**: historial visible, paginado, sin cargar texto pesado (verificable inspeccionando la respuesta de red).
 
-### Fase C — Vista detallada
+**Resumen de lo implementado y verificado:** `page.tsx` usa `fetchDocumentHistoryPage()` (20/página), con estado `page`/`total`/`totalPages` y botones Anterior/Siguiente deshabilitados en los extremos y durante carga. Tarjetas sin preview de contenido, con badge de páginas (`page_count ?? '—'`). Búsqueda y filtros (nombre, modo, longitud, formato) se retiraron por completo — quedan para la Fase D. `handleNewHistoryItem` recarga `loadPage(1)` en vez de construir un resumen manual, evitando desincronizar `page_count`/`total`. Estados de carga, vacío y error añadidos. `handleDelete` sin modificar (riesgo documentado: `total`/`totalPages` puede quedar desalineado tras borrar, hasta la siguiente carga). `tsc --noEmit` y `next build` con exit code 0.
+
+### Fase C — Vista detallada — ✅ Completada
 **Objetivo**: al abrir un documento, fetch puntual de `original_text`+`result_text` por `id`; modal ampliado con texto original.
 **Archivos probables**: `app/dashboard/page.tsx` (o `DocumentDetailModal` extraído).
 **Riesgos**: manejar el estado de carga del detalle sin bloquear el resto de la página.
 **Prueba manual**: abrir varios documentos distintos, confirmar que cada uno trae su propio texto y no el de otro (validación manual de que el filtro por `id` funciona).
 **Criterio de aceptación**: texto original visible; descarga sigue funcionando igual que hoy desde el detalle.
 
-### Fase D — Búsqueda, filtros y orden server-side
+**Resumen de lo implementado y verificado:** se agregó `fetchDocumentHistoryDetail()` en `lib/documentHistory.ts` (tipo `DocumentHistoryDetailResult` con `'ok' | 'not_found' | 'error'`), consultado bajo demanda desde el modal — `original_text`/`result_text`/`output_format`/`output_filename` nunca se cargan en el listado. El modal (se mantuvo, sin ruta nueva) muestra nombre, fecha, modo, longitud, páginas, formato, archivo generado, texto original y resultado; el header queda oculto hasta que el detalle está listo, el botón ✕ siempre visible. Estados `loading`/`error`/`not_found` visibles dentro del modal (con reintento en `error`); `original_text`/`result_text` vacíos muestran mensaje en vez de bloque en blanco. Descarga (TXT/DOCX/PDF vía `/api/generate-doc`, fallback TXT, sin Storage) reutiliza el mismo detalle ya cargado, deshabilitada si no hay `result_text`. Protegido por RLS `SELECT` + filtro explícito `id`+`user_id`, sin cliente admin. `tsc --noEmit` y `next build` con exit code 0.
+
+### Fase D — Búsqueda, filtros y orden server-side — ✅ Completada
 **Objetivo**: mover búsqueda/filtro/orden de client-side (array completo) a consultas Supabase compatibles con paginación.
 **Archivos probables**: `app/dashboard/page.tsx`.
 **Riesgos**: mayor complejidad de estado (query params/estado combinando página+búsqueda+filtros+orden); posible regresión de UX si la búsqueda por contenido no se acota bien (ver sección 5).
 **Prueba manual**: combinar búsqueda + filtro + orden simultáneamente y confirmar resultados correctos y paginación coherente.
 **Criterio de aceptación**: todos los criterios de la sección 5 funcionan contra Supabase, no contra un array en memoria.
+
+**Resumen de lo implementado y verificado:** `fetchDocumentHistoryPage()` (`lib/documentHistory.ts`) acepta un 4º parámetro `DocumentHistoryQuery` (búsqueda, `mode`, `resultLength`, `outputFormat`, `downloadableOnly`, `sort`) y aplica todo server-side, antes de `.range()` — nunca sobre un array en memoria. La búsqueda usa `.or()` sobre `file_name` y `output_filename`; se verificó manualmente con nombres reales y palabras clave. Los casos con caracteres especiales completos no quedaron confirmados uno por uno y deben considerarse prueba pendiente si se requieren coincidencias literales exactas. `original_text`/`result_text` quedan fuera de la búsqueda y del listado, según lo acordado para esta fase. Filtros por modo, longitud y formato (incluye "sin formato"), "solo descargables", y orden por fecha/nombre/páginas (`page_count` nulo siempre al final) quedaron implementados; no se verificaron todos exhaustivamente en combinación. `tsc --noEmit` y `next build` pasaron con exit code 0. El historial cargó correctamente en la app real, y la búsqueda por nombre/palabras clave funcionó en la app real. La columna `page_count` fue agregada en Supabase; los documentos históricos muestran `null`/`—`. Queda pendiente confirmar con una generación nueva que el backend guarde el conteo real. Búsqueda dentro de `original_text`/`result_text` permanece fuera de alcance (candidata a una fase futura, no planificada aún).
 
 ### Fase E — Tarjeta de consumo real
 **Objetivo**: nueva ruta `GET /api/account/usage`; conectar `UsageCard` reemplazando el hardcode.

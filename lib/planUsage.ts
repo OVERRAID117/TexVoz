@@ -9,6 +9,8 @@ export type PlanLimits = {
 export type ActiveSubscription = {
   periodStart: string
   periodEnd: string
+  planName: string
+  planDisplayName: string
   limits: PlanLimits
 }
 
@@ -17,7 +19,7 @@ export async function getActiveSubscription(userId: string): Promise<ActiveSubsc
 
   const { data, error } = await admin
     .from('user_subscriptions')
-    .select('period_start, period_end, plans(max_docs_monthly, max_pages_per_doc, max_pages_monthly)')
+    .select('period_start, period_end, plans(name, display_name, max_docs_monthly, max_pages_per_doc, max_pages_monthly)')
     .eq('user_id', userId)
     .eq('status', 'active')
     .maybeSingle()
@@ -36,6 +38,8 @@ export async function getActiveSubscription(userId: string): Promise<ActiveSubsc
   return {
     periodStart: data.period_start,
     periodEnd: data.period_end,
+    planName: plan.name,
+    planDisplayName: plan.display_name,
     limits: {
       maxDocsMonthly: plan.max_docs_monthly,
       maxPagesPerDoc: plan.max_pages_per_doc,
