@@ -19,7 +19,7 @@ export async function getActiveSubscription(userId: string): Promise<ActiveSubsc
 
   const { data, error } = await admin
     .from('subscriptions')
-    .select('period_start, period_end, plans(name, display_name, max_docs_monthly, max_pages_per_doc, max_pages_monthly)')
+    .select('period_start, period_end, plans(name, display_name, max_docs_month, max_pages_per_doc, max_pages_monthly)')
     .eq('user_id', userId)
     .eq('status', 'active')
     .maybeSingle()
@@ -41,7 +41,7 @@ export async function getActiveSubscription(userId: string): Promise<ActiveSubsc
     planName: plan.name,
     planDisplayName: plan.display_name,
     limits: {
-      maxDocsMonthly: plan.max_docs_monthly,
+      maxDocsMonthly: plan.max_docs_month,
       maxPagesPerDoc: plan.max_pages_per_doc,
       maxPagesMonthly: plan.max_pages_monthly,
     },
