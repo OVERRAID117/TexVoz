@@ -63,14 +63,23 @@ export async function getPeriodUsage(
 ): Promise<PeriodUsage> {
   const admin = getSupabaseAdmin()
 
-  const periodEndExclusive = new Date(`${periodEnd}T00:00:00.000Z`)
-  periodEndExclusive.setUTCDate(periodEndExclusive.getUTCDate() + 1)
+  const periodStartInclusive = new Date(periodStart)
+
+  if (Number.isNaN(periodStartInclusive.getTime())) {
+    throw new Error(`period_start inválido: ${periodStart}`)
+  }
+
+  const periodEndExclusive = new Date(periodEnd)
+
+  if (Number.isNaN(periodEndExclusive.getTime())) {
+    throw new Error(`period_end inválido: ${periodEnd}`)
+  }
 
   const { data, error } = await admin
     .from('document_history')
     .select('page_count')
     .eq('user_id', userId)
-    .gte('created_at', `${periodStart}T00:00:00.000Z`)
+    .gte('created_at', periodStartInclusive.toISOString())
     .lt('created_at', periodEndExclusive.toISOString())
 
   if (error) {
