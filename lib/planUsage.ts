@@ -18,7 +18,7 @@ export async function getActiveSubscription(userId: string): Promise<ActiveSubsc
   const admin = getSupabaseAdmin()
 
   const { data, error } = await admin
-    .from('user_subscriptions')
+    .from('subscriptions')
     .select('period_start, period_end, plans(name, display_name, max_docs_monthly, max_pages_per_doc, max_pages_monthly)')
     .eq('user_id', userId)
     .eq('status', 'active')
