@@ -45,8 +45,12 @@ export async function GET(req: NextRequest) {
   const docs = buildMetricUsage(usage.docsUsed, subscription.limits.maxDocsMonthly);
   const pages = buildMetricUsage(usage.pagesUsed, subscription.limits.maxPagesMonthly);
 
-  const periodEndExclusiveDate = new Date(`${subscription.periodEnd}T00:00:00.000Z`);
-  periodEndExclusiveDate.setUTCDate(periodEndExclusiveDate.getUTCDate() + 1);
+  const periodEndExclusiveDate = new Date(subscription.periodEnd);
+
+  if (Number.isNaN(periodEndExclusiveDate.getTime())) {
+    throw new Error(`period_end inválido: ${subscription.periodEnd}`);
+  }
+
   const endExclusive = periodEndExclusiveDate.toISOString().slice(0, 10);
 
   const response: AccountUsageResponse = {
