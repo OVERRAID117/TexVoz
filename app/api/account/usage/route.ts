@@ -45,6 +45,14 @@ export async function GET(req: NextRequest) {
   const docs = buildMetricUsage(usage.docsUsed, subscription.limits.maxDocsMonthly);
   const pages = buildMetricUsage(usage.pagesUsed, subscription.limits.maxPagesMonthly);
 
+  const periodStartDate = new Date(subscription.periodStart);
+
+  if (Number.isNaN(periodStartDate.getTime())) {
+    throw new Error(`period_start inválido: ${subscription.periodStart}`);
+  }
+
+  const start = periodStartDate.toISOString().slice(0, 10);
+
   const periodEndExclusiveDate = new Date(subscription.periodEnd);
 
   if (Number.isNaN(periodEndExclusiveDate.getTime())) {
@@ -61,7 +69,7 @@ export async function GET(req: NextRequest) {
         displayName: subscription.planDisplayName,
       },
       period: {
-        start: subscription.periodStart,
+        start,
         endExclusive,
       },
       docs,
