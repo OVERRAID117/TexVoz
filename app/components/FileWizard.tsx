@@ -202,6 +202,7 @@ export default function FileWizard({ onSaved }: { onSaved?: (row: HistoryRow) =>
   const [pendingFileName, setPendingFileName] = useState('')
   const [pendingHistoryData, setPendingHistoryData] = useState<PendingHistoryData | null>(null)
   const [scannedModal, setScannedModal]       = useState(false)
+  const [errorModal, setErrorModal] = useState<{ type: 'limit' | 'other'; message: string } | null>(null)
   const [pageMetrics, setPageMetrics] = useState<{ total: number; text: number; scanned: number } | null>(null)
   
  // Ajustar configuración según la herramienta seleccionada
@@ -335,7 +336,10 @@ const iaOutputCost = iaOutputChars > 0
       )
 
       if (iaData.error) {
-        alert(iaData.error)
+        setErrorModal({
+          type: iaRes.status === 403 ? 'limit' : 'other',
+          message: iaData.error,
+        })
         setLoading(false)
         return
       }
@@ -1014,6 +1018,53 @@ const iaOutputCost = iaOutputChars > 0
               }}
             >
               Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL ERROR IA-EXPLAIN ── */}
+      {errorModal && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.75)',
+          display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
+        }}>
+          <div style={{
+            background:'#0D2B26', borderRadius:16, padding:32,
+            width:'min(460px, 90vw)', boxShadow:'0 24px 64px rgba(0,0,0,0.6)',
+            border: errorModal.type === 'limit' ? '1px solid #3a2000' : '1px solid #4a1a1a'
+          }}>
+            <div style={{
+              width:56, height:56, borderRadius:'50%',
+              background: errorModal.type === 'limit' ? '#F5920A22' : '#dc262622',
+              border: errorModal.type === 'limit' ? '1px solid #F5920A55' : '1px solid #dc262655',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:26, marginBottom:16
+            }}>{errorModal.type === 'limit' ? '🔒' : '⚠️'}</div>
+
+            <h3 style={{ color:'#fff', margin:'0 0 12px', fontSize:18, fontWeight:700 }}>
+              {errorModal.type === 'limit' ? 'Límite de tu plan' : 'No pudimos procesar el documento'}
+            </h3>
+
+            <p style={{ color:'#89bdb5', margin:'0 0 12px', fontSize:14, lineHeight:1.6 }}>
+              {errorModal.message}
+            </p>
+
+            {errorModal.type === 'limit' && (
+              <p style={{ color:'#c4956a', margin:'0 0 20px', fontSize:12, lineHeight:1.5 }}>
+                El documento no fue procesado y no se descontó de tu consumo.
+              </p>
+            )}
+
+            <button
+              onClick={() => setErrorModal(null)}
+              style={{
+                width:'100%', padding:'11px',
+                background:'#0BB89A', border:'none', borderRadius:8,
+                color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700
+              }}
+            >
+              Entendido
             </button>
           </div>
         </div>
