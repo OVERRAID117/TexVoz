@@ -15,6 +15,7 @@ type Plan = {
   max_pages_per_doc:  number | null
   max_seats:          number | null
   history_days:       number | null
+  is_public:          boolean
   sort_order:         number
 }
 
@@ -133,6 +134,7 @@ useEffect(() => {
     const { data, error } = await supabase
       .from('plans')
       .select('*')
+      .eq('is_public', true)
       .order('sort_order', { ascending: true })
     if (error) { console.error(error); setPlansError(true) }
     else setPlans(data || [])
