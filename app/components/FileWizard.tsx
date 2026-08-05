@@ -1030,28 +1030,46 @@ const iaOutputCost = iaOutputChars > 0
           display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
         }}>
           <div style={{
-            background:'#0D2B26', borderRadius:16, padding:32,
+            background:'#0D2B26', borderRadius:16,
+            padding: errorModal.type === 'limit' ? '40px 32px' : 32,
             width:'min(460px, 90vw)', boxShadow:'0 24px 64px rgba(0,0,0,0.6)',
-            border: errorModal.type === 'limit' ? '1px solid #3a2000' : '1px solid #4a1a1a'
+            border: errorModal.type === 'limit' ? '1px solid #3a2000' : '1px solid #4a1a1a',
+            display: errorModal.type === 'limit' ? 'flex' : undefined,
+            flexDirection: errorModal.type === 'limit' ? 'column' : undefined,
+            alignItems: errorModal.type === 'limit' ? 'center' : undefined,
+            textAlign: errorModal.type === 'limit' ? 'center' : undefined,
           }}>
             <div style={{
-              width:56, height:56, borderRadius:'50%',
+              width: errorModal.type === 'limit' ? 64 : 56,
+              height: errorModal.type === 'limit' ? 64 : 56,
+              borderRadius:'50%',
               background: errorModal.type === 'limit' ? '#F5920A22' : '#dc262622',
               border: errorModal.type === 'limit' ? '1px solid #F5920A55' : '1px solid #dc262655',
               display:'flex', alignItems:'center', justifyContent:'center',
-              fontSize:26, marginBottom:16
+              fontSize: errorModal.type === 'limit' ? 32 : 26,
+              marginBottom: errorModal.type === 'limit' ? 20 : 16
             }}>{errorModal.type === 'limit' ? '🔒' : '⚠️'}</div>
 
-            <h3 style={{ color:'#fff', margin:'0 0 12px', fontSize:18, fontWeight:700 }}>
-              {errorModal.type === 'limit' ? 'Límite de tu plan' : 'No pudimos procesar el documento'}
+            <h3 style={{
+              color:'#fff',
+              margin: errorModal.type === 'limit' ? '0 0 14px' : '0 0 12px',
+              fontSize: errorModal.type === 'limit' ? 20 : 18,
+              fontWeight:700
+            }}>
+              {errorModal.type === 'limit' ? 'Alcanzaste el límite de tu plan' : 'No pudimos procesar el documento'}
             </h3>
 
-            <p style={{ color:'#89bdb5', margin:'0 0 12px', fontSize:14, lineHeight:1.6 }}>
+            <p style={{
+              color: errorModal.type === 'limit' ? '#c9e8e2' : '#89bdb5',
+              margin: errorModal.type === 'limit' ? '0 0 16px' : '0 0 12px',
+              fontSize: errorModal.type === 'limit' ? 15 : 14,
+              lineHeight:1.6
+            }}>
               {errorModal.message}
             </p>
 
             {errorModal.type === 'limit' && (
-              <p style={{ color:'#c4956a', margin:'0 0 20px', fontSize:12, lineHeight:1.5 }}>
+              <p style={{ color:'#89bdb5', margin:'0 0 24px', fontSize:12, lineHeight:1.5 }}>
                 El documento no fue procesado y no se descontó de tu consumo.
               </p>
             )}
