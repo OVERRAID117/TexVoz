@@ -702,6 +702,7 @@ const iaOutputCost = iaOutputChars > 0
  
           {/* ── IA solo ── */}
           {action === 'ia' && (
+            <>
             <div className={styles.configGrid}>
               <div className={styles.configBlock}>
                 <p className={styles.configBlockTitle}>Modo de explicación</p>
@@ -716,30 +717,8 @@ const iaOutputCost = iaOutputChars > 0
                     </label>
                   ))}
                 </div>
-                <div className={styles.includesBox}>
-                  {(() => {
-                    const selectedPreview = IA_MODE_PREVIEWS[iaMode] ?? {
-                      text: 'Selecciona una herramienta para ver una vista previa.',
-                      example: 'La vista previa aparecerá aquí.',
-                    }
-                    return (
-                      <>
-                        <p className={styles.includesTitle}>Así se verá tu resultado</p>
-                        <p className={styles.includesItem} style={{ fontSize: 16, lineHeight: 1.6, fontWeight: 600, color: '#1a1a2e', margin: '4px 0' }}>
-                          {selectedPreview.text}
-                        </p>
-                        <p className={styles.includesItem} style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#4a4a6a', margin: '14px 0 4px' }}>
-                          Ejemplo
-                        </p>
-                        <p className={styles.includesItem} style={{ fontSize: 13, lineHeight: 1.6, color: '#4a4a6a', margin: 0, whiteSpace: 'pre-line' }}>
-                          {selectedPreview.example}
-                        </p>
-                      </>
-                    )
-                  })()}
-                </div>
               </div>
- 
+
               <div className={styles.configBlock}>
               {iaMode === 1 ? (
   <>
@@ -838,8 +817,34 @@ const iaOutputCost = iaOutputChars > 0
                 </div>
               </div>
             </div>
+
+            <div className={styles.configBlock}>
+              <div className={styles.includesBox}>
+                {(() => {
+                  const selectedPreview = IA_MODE_PREVIEWS[iaMode] ?? {
+                    text: 'Selecciona una herramienta para ver una vista previa.',
+                    example: 'La vista previa aparecerá aquí.',
+                  }
+                  return (
+                    <>
+                      <p className={styles.includesTitle}>Así se verá tu resultado</p>
+                      <p className={styles.includesItem} style={{ fontSize: 16, lineHeight: 1.6, fontWeight: 600, color: '#1a1a2e', margin: '4px 0' }}>
+                        {selectedPreview.text}
+                      </p>
+                      <p className={styles.includesItem} style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#4a4a6a', margin: '14px 0 4px' }}>
+                        Ejemplo
+                      </p>
+                      <p className={styles.includesItem} style={{ fontSize: 13, lineHeight: 1.6, color: '#4a4a6a', margin: 0, whiteSpace: 'pre-line' }}>
+                        {selectedPreview.example}
+                      </p>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+            </>
           )}
- 
+
           {/* ── AMBOS ── */}
           {action === 'ambos' && (
             <>
