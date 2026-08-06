@@ -481,7 +481,7 @@ export default function DashboardPage() {
         <section id="herramientas" className={styles.workSection}>
           <h2 className={styles.sectionTitle}>Área de trabajo</h2>
           <p className={styles.workSubtitle}>Sube un documento y genera tu explicación.</p>
-          <FileWizard onSaved={handleNewHistoryItem} />
+          <FileWizard onSaved={handleNewHistoryItem} allowAudio={false} />
         </section>
 
         {/* ── Consumo del plan ── */}

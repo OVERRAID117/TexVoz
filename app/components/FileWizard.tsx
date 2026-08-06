@@ -27,6 +27,29 @@ const VOICES = [
   { label: '🔍 Analizar documento', desc: 'Detecta hallazgos, riesgos y puntos importantes.' },
 ]
  
+const IA_MODE_PREVIEWS: Record<number, { text: string; example: string }> = {
+  0: {
+    text: 'Convertiremos las partes difíciles en explicaciones claras y sencillas.',
+    example: 'Texto original: La obligación subsistirá durante cinco años.\nExplicación: Las partes deberán guardar la información durante cinco años.',
+  },
+  1: {
+    text: 'Recibirás los puntos más importantes de tu documento.',
+    example: '• Fecha límite: 15 de mayo\n• Pago total: $285,000\n• Garantía: 12 meses',
+  },
+  2: {
+    text: 'Recibirás las preguntas más importantes junto con sus respuestas.',
+    example: 'Pregunta: ¿Cuál es la fecha límite?\nRespuesta: El 15 de mayo de 2026.',
+  },
+  3: {
+    text: 'Recibirás una guía organizada para estudiar y repasar tu documento.',
+    example: 'Tema principal: Obligaciones\nConcepto clave: Confidencialidad\nRecuerda: Su vigencia es de cinco años.',
+  },
+  4: {
+    text: 'Detectaremos fechas, pagos, obligaciones, riesgos, inconsistencias y datos importantes.',
+    example: 'Fecha: 15 de mayo de 2026\nPago: $285,000\nRiesgo: El anexo menciona otra fecha de entrega.',
+  },
+}
+
 const EXTENSIONES = [
   { label: 'Corto', desc: 'Solo lo más importante.', value: 0.25 },
   { label: 'Medio', desc: 'Más contexto sin hacerlo extenso.', value: 0.50 },
@@ -121,11 +144,13 @@ export type HistoryRow = {
   created_at:      string
 }
 
-const MODE_LABELS   = ['explicar', 'resumir', 'ordenar', 'simplificar'] as const
+const MODE_LABELS: Record<number, string> = {
+  0: 'explicar', 1: 'resumir', 2: 'preguntas', 3: 'guia-estudio', 4: 'analizar',
+}
 const LENGTH_LABELS: Record<number, string> = {
   0.25: 'corto', 0.5: 'medio', 0.75: 'largo', 1: 'completo',
 }
-const getModeLabel   = (idx: number) => MODE_LABELS[idx] ?? 'explicar'
+const getModeLabel   = (idx: number) => MODE_LABELS[idx] ?? 'desconocido'
 const getLengthLabel = (val: number) => LENGTH_LABELS[val] ?? 'medio'
 
 // Guarda en historial y devuelve la fila real insertada (con id/created_at generados por Supabase).
@@ -177,7 +202,13 @@ async function saveToHistory(params: PendingHistoryData & {
 }
  
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function FileWizard({ onSaved }: { onSaved?: (row: HistoryRow) => void } = {}) {
+export default function FileWizard({
+  onSaved,
+  allowAudio = true,
+}: {
+  onSaved?: (row: HistoryRow) => void
+  allowAudio?: boolean
+} = {}) {
   const [step,      setStep]      = useState<Step>(1)
   const step3Ref = useRef<HTMLDivElement>(null)
 
@@ -269,7 +300,12 @@ const iaOutputCost = iaOutputChars > 0
     if (data.totalPages) {
       setPageMetrics({ total: data.totalPages, text: data.textPages, scanned: data.scannedPages })
     }
-    setStep(2)
+    if (allowAudio) {
+      setStep(2)
+    } else {
+      setAction('ia')
+      setStep(3)
+    }
     if (data.isScanned) setScannedModal(true)
   }
  
@@ -544,7 +580,7 @@ const iaOutputCost = iaOutputChars > 0
       </div>
  
       {/* ── PASO 2: ELEGIR SERVICIO ── */}
-      {step >= 2 && (
+      {allowAudio && step >= 2 && (
         <div className={styles.stepSection}>
           <div className={styles.stepHeader}>
             <div className={`${styles.stepCircle} ${step >= 2 ? styles.stepCircleActive : ''}`}>
@@ -599,7 +635,7 @@ const iaOutputCost = iaOutputChars > 0
       {step >= 3 && (
         <div className={styles.stepSection} ref={step3Ref}>
           <div className={styles.stepHeader}>
-            <div className={`${styles.stepCircle} ${styles.stepCircleActive}`}>3</div>
+            <div className={`${styles.stepCircle} ${styles.stepCircleActive}`}>{allowAudio ? '3' : '2'}</div>
             <h3 className={styles.stepTitle}>
               {action === 'ambos' ? 'Personaliza tu pedido (combo)' :
                action === 'audio' ? 'Configura tu servicio' : 'Configura tu explicación'}
@@ -681,48 +717,26 @@ const iaOutputCost = iaOutputChars > 0
                   ))}
                 </div>
                 <div className={styles.includesBox}>
-                 <p className={styles.includesTitle}>¿Qué incluye?</p>
-
-{(
-  iaMode === 0
-    ? [
-        'Explicación clara y fácil de entender',
-        'Ejemplos cuando sean necesarios',
-        'Descarga en PDF, Word o TXT',
-        'Entrega rápida y segura',
-      ]
-    : iaMode === 1
-    ? [
-        'Resumen del documento',
-        'Información realmente importante',
-        'Descarga en PDF, Word o TXT',
-        'Entrega rápida y segura',
-      ]
-    : iaMode === 2
-    ? [
-        'Preguntas creadas por IA',
-        'Basadas en el contenido del documento',
-        'Descarga en PDF, Word o TXT',
-        'Entrega rápida y segura',
-      ]
-    : iaMode === 3
-    ? [
-        'Guía organizada para estudiar',
-        'Contenido estructurado',
-        'Descarga en PDF, Word o TXT',
-        'Entrega rápida y segura',
-      ]
-    : [
-        'Análisis inteligente del documento',
-        'Hallazgos y puntos importantes',
-        'Descarga en PDF, Word o TXT',
-        'Entrega rápida y segura',
-      ]
-).map(t => (
-  <p key={t} className={styles.includesItem}>
-    ✓ {t}
-  </p>
-))}
+                  {(() => {
+                    const selectedPreview = IA_MODE_PREVIEWS[iaMode] ?? {
+                      text: 'Selecciona una herramienta para ver una vista previa.',
+                      example: 'La vista previa aparecerá aquí.',
+                    }
+                    return (
+                      <>
+                        <p className={styles.includesTitle}>Así se verá tu resultado</p>
+                        <p className={styles.includesItem} style={{ fontSize: 16, lineHeight: 1.6, fontWeight: 600, color: '#1a1a2e', margin: '4px 0' }}>
+                          {selectedPreview.text}
+                        </p>
+                        <p className={styles.includesItem} style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#4a4a6a', margin: '14px 0 4px' }}>
+                          Ejemplo
+                        </p>
+                        <p className={styles.includesItem} style={{ fontSize: 13, lineHeight: 1.6, color: '#4a4a6a', margin: 0, whiteSpace: 'pre-line' }}>
+                          {selectedPreview.example}
+                        </p>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
  
