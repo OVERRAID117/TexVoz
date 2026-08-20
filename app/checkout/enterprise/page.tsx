@@ -26,9 +26,9 @@ export default function CheckoutEnterprisePage() {
         <ul className={styles.planList}>
           <li><span className={styles.checkPro}>✓</span>300 documentos por mes</li>
           <li><span className={styles.checkPro}>✓</span>Hasta 150 páginas por documento</li>
-          <li><span className={styles.checkPro}>✓</span>Hasta 5 usuarios</li>
+          <li><span className={styles.checkPro}>✓</span>1 usuario · Multiusuario próximamente</li>
           <li><span className={styles.checkPro}>✓</span>Historial de 90 días</li>
-          <li><span className={styles.checkPro}>✓</span>Los 4 modos de IA: explicar, resumir, ordenar, simplificar</li>
+          <li><span className={styles.checkPro}>✓</span>Las 5 herramientas de IA: explicar, resumir, preguntas, guía de estudio y analizar documento</li>
           <li><span className={styles.checkPro}>✓</span>Soporte prioritario</li>
         </ul>
 

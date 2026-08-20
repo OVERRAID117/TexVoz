@@ -43,7 +43,9 @@ export async function GET(req: NextRequest) {
   }
 
   const docs = buildMetricUsage(usage.docsUsed, subscription.limits.maxDocsMonthly);
-  const pages = buildMetricUsage(usage.pagesUsed, subscription.limits.maxPagesMonthly);
+  // No existe un tope mensual de páginas en el schema real (solo por-documento,
+  // vía maxPagesPerDoc) — se reporta el uso real sin límite mensual conocido.
+  const pages = buildMetricUsage(usage.pagesUsed, null);
 
   const periodStartDate = new Date(subscription.periodStart);
 
@@ -67,6 +69,8 @@ export async function GET(req: NextRequest) {
       plan: {
         name: subscription.planName,
         displayName: subscription.planDisplayName,
+        maxPagesPerDoc: subscription.limits.maxPagesPerDoc,
+        historyDays: subscription.limits.historyDays,
       },
       period: {
         start,
@@ -74,6 +78,7 @@ export async function GET(req: NextRequest) {
       },
       docs,
       pages,
+      mostUsedMode: usage.mostUsedMode,
     },
   };
   return NextResponse.json(response, { status: 200 });

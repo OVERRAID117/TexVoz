@@ -28,7 +28,7 @@ export default function CheckoutProPage() {
           <li><span className={styles.checkPro}>✓</span>Hasta 100 páginas por documento</li>
           <li><span className={styles.checkPro}>✓</span>1 usuario</li>
           <li><span className={styles.checkPro}>✓</span>Historial de 30 días</li>
-          <li><span className={styles.checkPro}>✓</span>Los 4 modos de IA: explicar, resumir, ordenar, simplificar</li>
+          <li><span className={styles.checkPro}>✓</span>Las 5 herramientas de IA: explicar, resumir, preguntas, guía de estudio y analizar documento</li>
         </ul>
 
         {clicked ? (

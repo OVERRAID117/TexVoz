@@ -73,6 +73,9 @@ export async function POST(req: NextRequest) {
         result_text: resultText,
         output_format: outputFormat,
         output_filename: outputFilename,
+        // Cualquier fila que pase por aquí queda "moderna" desde este
+        // momento — su output_format ya no requiere inferencia legacy.
+        output_format_known: true,
       })
       .eq("id", historyId)
       .eq("user_id", auth.userId)

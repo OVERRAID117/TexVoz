@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PromptBuilder } from "@/core/prompt/PromptBuilder";
 import { checkAuth } from "@/lib/supabaseServer";
-import { getActiveSubscription, getPeriodUsage, estimatePageCount, recordUsage } from "@/lib/planUsage";
+import { getActiveSubscription, getPeriodUsage, estimatePageCount, recordUsage, type SourceFormat } from "@/lib/planUsage";
+import {
+  getBetaGrantStatus,
+  reserveBetaDocSlot,
+  completeBetaDocSlot,
+  releaseBetaDocSlot,
+  type BetaGrant,
+} from "@/lib/betaAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -43,6 +50,17 @@ function resolveResultLengthLabel(body: RequestBody): string {
   return LENGTH_LABELS[extension] ?? "medio";
 }
 
+// body.extension NO es la extensión del archivo (es el multiplicador de
+// longitud de respuesta, ver resolveResultLengthLabel arriba) — el formato
+// real del archivo se infiere de fileName, que sí trae la extensión real.
+function inferSourceFormat(fileName: string): SourceFormat {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (ext === "docx" || ext === "doc") return "docx";
+  if (ext === "txt") return "txt";
+  return "unknown";
+}
+
 const SUMMARY_LENGTHS = ["short", "medium", "long"] as const;
 type SummaryLength = (typeof SUMMARY_LENGTHS)[number];
 
@@ -76,6 +94,7 @@ interface RequestBody {
   extension?: unknown;
   tool?: unknown;
   summaryLength?: unknown;
+  declaredPageCount?: unknown;
 }
 
 type DeepSeekResponse = {
@@ -267,6 +286,15 @@ Entrega únicamente la versión completa corregida.
 }
 
 export async function POST(req: NextRequest) {
+  // Declaradas fuera del try para que el catch externo pueda decidir si
+  // corresponde liberar una reserva beta — betaReservationPending es el
+  // estado explícito que gobierna esa decisión (ver más abajo), no la
+  // nulidad de estas otras variables.
+  let accessSource: "subscription" | "beta" | null = null;
+  let betaGrantForCleanup: BetaGrant | null = null;
+  let userIdForCleanup: string | null = null;
+  let betaReservationPending = false;
+
   try {
     const body = (await req.json()) as RequestBody;
     const text = typeof body.text === "string" ? body.text.trim() : "";
@@ -314,57 +342,121 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!subscription) {
-      return NextResponse.json({ error: "No tienes un plan activo." }, { status: 403 });
+    // ── Suscripción → beta → 403. Prioridad estricta: si hay suscripción
+    // activa, beta ni se consulta. ──────────────────────────────────────
+    let betaGrant: BetaGrant | null = null;
+
+    if (subscription) {
+      accessSource = "subscription";
+    } else {
+      let betaStatus;
+      try {
+        betaStatus = await getBetaGrantStatus(userId);
+      } catch (err) {
+        console.error("[ia-explain BETA GRANT ERROR]", err);
+        return NextResponse.json(
+          { error: "No se pudo verificar tu acceso. Intenta de nuevo en unos momentos." },
+          { status: 503 }
+        );
+      }
+
+      if (betaStatus.status === "none") {
+        return NextResponse.json({ error: "No tienes un plan activo." }, { status: 403 });
+      }
+
+      if (betaStatus.status === "ended") {
+        const message =
+          betaStatus.reason === "expired"
+            ? "Tu ronda beta expiró."
+            : "Alcanzaste el límite de tu ronda beta.";
+        return NextResponse.json({ error: message }, { status: 403 });
+      }
+
+      betaGrant = betaStatus.grant;
+      accessSource = "beta";
+      betaGrantForCleanup = betaGrant;
+      userIdForCleanup = userId;
     }
 
-    const pageCount = estimatePageCount(text);
+    // declaredPageCount viene de la extracción previa (server-side, calculado
+    // de los bytes reales del archivo en /api/extract-text) — no es un dato
+    // de seguridad infalsificable, es un dato de esa extracción. Si falta o
+    // es inválido (p. ej. una llamada directa a esta API sin pasar por
+    // extract-text), se usa el cálculo autoderivado del propio texto.
+    const declaredPageCount =
+      typeof body.declaredPageCount === "number" &&
+      Number.isFinite(body.declaredPageCount) &&
+      body.declaredPageCount > 0
+        ? Math.floor(body.declaredPageCount)
+        : null;
 
-    if (
-      subscription.limits.maxPagesPerDoc !== null &&
-      pageCount > subscription.limits.maxPagesPerDoc
-    ) {
-      return NextResponse.json(
-        {
-          error: `El documento supera el máximo de ${subscription.limits.maxPagesPerDoc} páginas por documento de tu plan.`,
-        },
-        { status: 403 }
-      );
+    const pageCount = declaredPageCount ?? estimatePageCount(text, inferSourceFormat(fileName));
+
+    if (accessSource === "subscription") {
+      if (
+        subscription!.limits.maxPagesPerDoc !== null &&
+        pageCount > subscription!.limits.maxPagesPerDoc
+      ) {
+        return NextResponse.json(
+          {
+            error: `El documento supera el máximo de ${subscription!.limits.maxPagesPerDoc} páginas por documento de tu plan.`,
+          },
+          { status: 403 }
+        );
+      }
+    } else {
+      if (pageCount > betaGrant!.pagesPerDocLimit) {
+        return NextResponse.json(
+          {
+            error: `El documento supera el máximo de ${betaGrant!.pagesPerDocLimit} páginas por documento de tu ronda beta.`,
+          },
+          { status: 403 }
+        );
+      }
     }
 
-    let usage;
-    try {
-      usage = await getPeriodUsage(userId, subscription.periodStart, subscription.periodEnd);
-    } catch (err) {
-      console.error("[ia-explain USAGE ERROR]", err);
-      return NextResponse.json(
-        { error: "No se pudo verificar tu consumo. Intenta de nuevo en unos momentos." },
-        { status: 503 }
-      );
-    }
+    if (accessSource === "subscription") {
+      let usage;
+      try {
+        usage = await getPeriodUsage(userId, subscription!.periodStart, subscription!.periodEnd);
+      } catch (err) {
+        console.error("[ia-explain USAGE ERROR]", err);
+        return NextResponse.json(
+          { error: "No se pudo verificar tu consumo. Intenta de nuevo en unos momentos." },
+          { status: 503 }
+        );
+      }
 
-    // TODO: validación no atómica — dos requests simultáneas del mismo usuario
-    // podrían leer el mismo `usage` y ambas pasar antes de que cualquiera
-    // inserte su fila en document_history. Migrar a una función SQL/RPC
-    // transaccional antes de producción.
-    if (
-      subscription.limits.maxDocsMonthly !== null &&
-      usage.docsUsed + 1 > subscription.limits.maxDocsMonthly
-    ) {
-      return NextResponse.json(
-        { error: "Alcanzaste el límite de documentos de este periodo." },
-        { status: 403 }
-      );
-    }
+      // TODO: validación no atómica — dos requests simultáneas del mismo usuario
+      // podrían leer el mismo `usage` y ambas pasar antes de que cualquiera
+      // inserte su fila en document_history. Migrar a una función SQL/RPC
+      // transaccional antes de producción.
+      if (
+        subscription!.limits.maxDocsMonthly !== null &&
+        usage.docsUsed + 1 > subscription!.limits.maxDocsMonthly
+      ) {
+        return NextResponse.json(
+          { error: "Alcanzaste el límite de documentos de este periodo." },
+          { status: 403 }
+        );
+      }
 
-    if (
-      subscription.limits.maxPagesMonthly !== null &&
-      usage.pagesUsed + pageCount > subscription.limits.maxPagesMonthly
-    ) {
-      return NextResponse.json(
-        { error: "Alcanzaste el límite de páginas de este periodo." },
-        { status: 403 }
-      );
+      // No hay tope mensual de páginas en el schema real de `plans` (solo el
+      // por-documento, ya validado arriba vía maxPagesPerDoc) — ese campo
+      // (maxPagesMonthly) no existe como columna; ver nota en planUsage.ts.
+    } else {
+      // ── Reserva atómica beta — reemplaza getPeriodUsage+maxDocsMonthly para
+      // este camino. reserveBetaDocSlot sube docs_used e in_flight en un solo
+      // UPDATE guardado por WHERE (Fase 0), sin la carrera no-atómica del TODO
+      // de arriba.
+      const reserved = await reserveBetaDocSlot(betaGrant!.id, userId);
+      if (!reserved) {
+        return NextResponse.json(
+          { error: "Alcanzaste el límite de tu ronda beta." },
+          { status: 403 }
+        );
+      }
+      betaReservationPending = true; // único lugar donde se activa, y solo tras reserved===true
     }
 
     const summaryLength = resolveSummaryLength(body);
@@ -452,14 +544,42 @@ export async function POST(req: NextRequest) {
         mode: resolveModeLabel(tool),
         resultLength: resolveResultLengthLabel(body),
         pageCount,
+        origin: accessSource === "beta" ? "beta" : undefined,
+        betaGrantId: accessSource === "beta" ? betaGrant!.id : undefined,
       });
       historyId = saved.id;
     } catch (err) {
       console.error("[ia-explain RECORD USAGE ERROR]", err);
+      if (betaReservationPending && betaGrantForCleanup && userIdForCleanup) {
+        try {
+          await releaseBetaDocSlot(betaGrantForCleanup.id, userIdForCleanup);
+        } catch (releaseErr) {
+          console.error("[ia-explain RELEASE ERROR]", releaseErr);
+        }
+        betaReservationPending = false;
+      }
       return NextResponse.json(
         { error: "El documento se generó pero no se pudo registrar el uso. Intenta de nuevo." },
         { status: 500 }
       );
+    }
+
+    // recordUsage tuvo éxito: el documento ya existe en document_history y el
+    // consumo se considera comprometido desde este instante exacto. Se apaga
+    // la bandera ANTES de intentar completar, para que ningún error posterior
+    // (incluida una falla del propio completeBetaDocSlot) pueda disparar un
+    // release que le devolvería un slot por un documento que sí se generó y
+    // sí quedó guardado.
+    if (accessSource === "beta") {
+      betaReservationPending = false;
+      try {
+        await completeBetaDocSlot(betaGrant!.id, userId);
+      } catch (err) {
+        console.error("[ia-explain BETA COMPLETE ERROR]", err);
+        // No se libera nada — docs_used se queda consumido (correcto, el
+        // documento existe); in_flight podría quedar pegado en 1, riesgo
+        // residual ya aceptado en el plan de Fase 0.
+      }
     }
 
     const response: Record<string, unknown> = {
@@ -485,6 +605,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     console.error("[ia-explain ERROR]", error);
+
+    if (betaReservationPending && betaGrantForCleanup && userIdForCleanup) {
+      try {
+        await releaseBetaDocSlot(betaGrantForCleanup.id, userIdForCleanup);
+      } catch (releaseErr) {
+        console.error("[ia-explain RELEASE ERROR]", releaseErr);
+      }
+      betaReservationPending = false;
+    }
 
     return NextResponse.json(
       { error: "Error al procesar el documento con la IA." },

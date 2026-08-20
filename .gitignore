@@ -13,3 +13,11 @@ out/
 !package-lock.json
 !tsconfig.json
 !next.config.js
+
+# Generado — no versionar
+repomix-output.xml
+*.tsbuildinfo
+
+# Lab / desarrollo — no entra a producción
+/app/visual-lab/
+/public/visual-lab/

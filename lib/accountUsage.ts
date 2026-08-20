@@ -9,6 +9,8 @@ export type AccountUsageData = {
   plan: {
     name: string
     displayName: string
+    maxPagesPerDoc: number | null
+    historyDays: number | null
   }
   period: {
     start: string
@@ -16,6 +18,7 @@ export type AccountUsageData = {
   }
   docs: MetricUsage
   pages: MetricUsage
+  mostUsedMode: { mode: string; count: number } | null
 }
 
 export type AccountUsageResponse =

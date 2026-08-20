@@ -24,13 +24,12 @@
 /* ── Sidebar ── */
 
 .sidebar {
-  width: 240px;
+  width: 232px;
   flex-shrink: 0;
   background: #fff;
-  border-right: 1px solid #e8e4dc;
+  border-right: 1px solid #ece7dc;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   padding: 16px 12px;
   position: sticky;
   top: 0;
@@ -42,6 +41,28 @@
 
 .sidebarCollapsed {
   width: 76px;
+}
+
+.sidebarLogo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 18px;
+  font-size: 17px;
+  font-weight: 900;
+  color: #1a1a2e;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebarLogoDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #00c9a7;
+  flex-shrink: 0;
 }
 
 .sidebarNav {
@@ -77,6 +98,7 @@
 .sidebarLinkActive {
   background: #e6faf5;
   color: #009e88;
+  font-weight: 800;
 }
 
 .sidebarLinkDisabled {
@@ -124,7 +146,8 @@
 }
 
 .collapseButton {
-  border: 1px solid #e8e4dc;
+  margin-top: auto;
+  border: 1px solid #ece7dc;
   background: #fff;
   border-radius: 10px;
   padding: 8px 10px;
@@ -158,13 +181,13 @@
 /* ── Header ── */
 
 .header {
-  height: 64px;
-  background: #fff;
-  border-bottom: 1px solid #e8e4dc;
+  height: 56px;
+  background: #f5f3ee;
+  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 28px;
   position: sticky;
   top: 0;
   z-index: 90;
@@ -176,13 +199,14 @@
   gap: 12px;
 }
 
-.headerLogo {
-  display: flex;
+/* Logo del header: solo visible en móvil (la sidebar ya muestra el logo en
+   desktop) — ver @media 880px más abajo. */
+.headerLogoMobile {
+  display: none;
   align-items: center;
   gap: 8px;
-  font-family: 'Instrument Serif', serif;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 900;
   color: #1a1a2e;
   text-decoration: none;
 }
@@ -198,12 +222,26 @@
 .headerRight {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+}
+
+.headerUserAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #00c9a7;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .headerUser {
   font-size: 13px;
-  color: #6b6b8a;
+  color: #4a4a6a;
   font-weight: 700;
   max-width: 220px;
   overflow: hidden;
@@ -288,6 +326,10 @@
   }
 
   .mobileMenuButton {
+    display: flex;
+  }
+
+  .headerLogoMobile {
     display: flex;
   }
 

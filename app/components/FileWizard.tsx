@@ -26,6 +26,9 @@ const VOICES = [
   { label: '👨‍🏫 Crear guía de estudio', desc: 'Organiza el contenido para aprender y repasar.' },
   { label: '🔍 Analizar documento', desc: 'Detecta hallazgos, riesgos y puntos importantes.' },
 ]
+
+// Cajita de color por herramienta, mismo criterio que /visual-lab (mismo orden que IA_MODES)
+const TOOL_ICON_COLORS = ['toolCardIconOrange', 'toolCardIconGreen', 'toolCardIconPurple', 'toolCardIconYellow', 'toolCardIconBlue'] as const
  
 const IA_MODE_PREVIEWS: Record<number, { text: string; example: string }> = {
   0: {
@@ -47,6 +50,65 @@ const IA_MODE_PREVIEWS: Record<number, { text: string; example: string }> = {
   4: {
     text: 'Detectaremos fechas, pagos, obligaciones, riesgos, inconsistencias y datos importantes.',
     example: 'Fecha: 15 de mayo de 2026\nPago: $285,000\nRiesgo: El anexo menciona otra fecha de entrega.',
+  },
+}
+
+// Nombres cortos de las 5 herramientas reales, para el sidebar del preview del documento
+const PREVIEW_TOOL_NAMES = ['Explicar', 'Resumir', 'Preguntas', 'Guía de estudio', 'Analizar documento']
+
+// Contenido de demostración del preview "Así verás tu documento" (solo landing, showToolsWithUpload).
+// Independiente de IA_MODE_PREVIEWS (esa se usa en el paso 3 del wizard real/dashboard, no se toca).
+type DocPreviewContent =
+  | { kind: 'paragraphs'; items: string[] }
+  | { kind: 'bullets'; items: string[] }
+  | { kind: 'qa'; items: { q: string; a: string }[] }
+  | { kind: 'sections'; items: { title: string; points: string[] }[] }
+  | { kind: 'findings'; items: string[] }
+
+const DOCUMENT_PREVIEW_CONTENT: Record<number, DocPreviewContent> = {
+  0: {
+    kind: 'paragraphs',
+    items: [
+      'Este contrato establece los términos bajo los cuales el proveedor brindará servicios al cliente. Define responsabilidades, tiempos de entrega, pagos y condiciones de terminación.',
+      'En términos simples: el proveedor debe entregar el trabajo acordado, el cliente debe pagar en los plazos establecidos, y cualquiera de las partes puede terminar el contrato si la otra incumple sus obligaciones.',
+    ],
+  },
+  1: {
+    kind: 'bullets',
+    items: [
+      'Vigencia: 12 meses a partir de la firma',
+      'Pago total: $285,000 en 3 exhibiciones',
+      'Fecha de entrega: 15 de mayo de 2026',
+      'Confidencialidad obligatoria durante 5 años',
+      'Terminación anticipada: 30 días de aviso previo',
+    ],
+  },
+  2: {
+    kind: 'qa',
+    items: [
+      { q: '¿Cuál es la fecha límite de entrega?', a: '15 de mayo de 2026.' },
+      { q: '¿Cuánto debe pagarse en total?', a: '$285,000 MXN en 3 exhibiciones.' },
+      { q: '¿Qué pasa si una parte incumple?', a: 'La otra parte puede terminar el contrato.' },
+      { q: '¿Cuánto dura la confidencialidad?', a: '5 años a partir de la firma.' },
+    ],
+  },
+  3: {
+    kind: 'sections',
+    items: [
+      { title: 'Obligaciones contractuales', points: ['Qué debe cumplir cada parte', 'Cuándo se considera incumplimiento'] },
+      { title: 'Confidencialidad', points: ['Vigencia de 5 años', 'Aplica a ambas partes'] },
+      { title: 'Para repasar', points: ['Fechas de pago y entrega', 'Condiciones de terminación anticipada'] },
+    ],
+  },
+  4: {
+    kind: 'findings',
+    items: [
+      'Riesgo: el anexo menciona una fecha de entrega distinta a la cláusula principal',
+      'Fecha clave: 15 de mayo de 2026',
+      'Pago: $285,000 en 3 exhibiciones',
+      'Inconsistencia: el monto no coincide entre la sección 2 y el anexo B',
+      'Obligación: confidencialidad por 5 años tras la terminación',
+    ],
   },
 }
 
@@ -114,11 +176,28 @@ const formatDuration = (chars: number, speed: number) => {
   return `${m}m aprox`
 }
  
-const fileTypeIcon = (name: string) => {
+type FileTypeIcon =
+  | { kind: 'image'; src: string }
+  | { kind: 'emoji'; glyph: string }
+
+const fileTypeIcon = (name: string): FileTypeIcon => {
   const ext = name.split('.').pop()?.toLowerCase()
-  if (ext === 'pdf')  return '📄'
-  if (ext === 'docx' || ext === 'doc') return '📝'
-  return '🗒️'
+  if (ext === 'pdf') return { kind: 'image', src: '/dashboard/icons/file-pdf.png' }
+  if (ext === 'docx' || ext === 'doc') return { kind: 'image', src: '/dashboard/icons/file-docx.png' }
+  if (ext === 'txt') return { kind: 'image', src: '/dashboard/icons/file-txt.png' }
+  return { kind: 'emoji', glyph: '🗒️' }
+}
+
+// Título del modal de error para un 403 de límite — interpreta el mensaje
+// FIJO que ya devuelve el backend (ia-explain), sin cambiar ese backend ni
+// sus mensajes (solo el título mostrado aquí). Si el texto no coincide con
+// ninguno de los casos conocidos, cae al título genérico de suscripción.
+function pickLimitErrorTitle(message: string): string {
+  if (message === 'Alcanzaste el límite de tu ronda beta.') return 'Alcanzaste el límite de tu ronda beta'
+  if (message === 'Tu ronda beta expiró.') return 'Tu acceso beta expiró'
+  if (message.includes('páginas por documento de tu ronda beta')) return 'El documento supera el límite de tu Beta'
+  if (message === 'No tienes un plan activo.') return 'Necesitas acceso para generar'
+  return 'Alcanzaste el límite de tu plan'
 }
 
 // ── Historial helpers ──────────────────────────────────────────────────────
@@ -140,6 +219,7 @@ export type HistoryRow = {
   mode:            string
   result_length:   string
   output_format:   string | null
+  output_format_known: boolean
   output_filename: string | null
   created_at:      string
 }
@@ -192,6 +272,7 @@ async function saveToHistory(params: PendingHistoryData & {
       mode:            getModeLabel(params.mode),
       result_length:   getLengthLabel(params.length),
       output_format:   params.outputFormat   ?? null,
+      output_format_known: true,
       output_filename: params.outputFilename ?? null,
       created_at:      data.createdAt,
     }
@@ -205,9 +286,32 @@ async function saveToHistory(params: PendingHistoryData & {
 export default function FileWizard({
   onSaved,
   allowAudio = true,
+  showToolsWithUpload = false,
+  hideCostUI = false,
+  accessChecking = false,
+  generationLocked = false,
+  lockedMessage,
+  onOpenAccessOptions,
+  onRetryAccessCheck,
+  usingBetaAccess = false,
 }: {
   onSaved?: (row: HistoryRow) => void
   allowAudio?: boolean
+  showToolsWithUpload?: boolean
+  // Dashboard (suscriptores): oculta el lenguaje de "pago por uso" heredado del
+  // flujo pay-per-use de la landing — el consumo real ya se rige por el plan,
+  // no por este costo calculado en cliente (que nunca se envía a la API de
+  // generación). No cambia handlers, validaciones ni la llamada real.
+  hideCostUI?: boolean
+  // Acceso (Fase 3, dashboard) — puramente cosmético: el enforcement real
+  // sigue siendo el 403 de /api/ia-explain. FileWizard no sabe nada de
+  // suscripciones ni beta, solo refleja el estado que le pasa el llamador.
+  accessChecking?: boolean
+  generationLocked?: boolean
+  lockedMessage?: string
+  onOpenAccessOptions?: () => void
+  onRetryAccessCheck?: () => void
+  usingBetaAccess?: boolean
 } = {}) {
   const [step,      setStep]      = useState<Step>(1)
   const step3Ref = useRef<HTMLDivElement>(null)
@@ -233,7 +337,7 @@ export default function FileWizard({
   const [pendingFileName, setPendingFileName] = useState('')
   const [pendingHistoryData, setPendingHistoryData] = useState<PendingHistoryData | null>(null)
   const [scannedModal, setScannedModal]       = useState(false)
-  const [errorModal, setErrorModal] = useState<{ type: 'limit' | 'other'; message: string } | null>(null)
+  const [errorModal, setErrorModal] = useState<{ type: 'limit' | 'other'; message: string; title?: string } | null>(null)
   const [pageMetrics, setPageMetrics] = useState<{ total: number; text: number; scanned: number } | null>(null)
   
  // Ajustar configuración según la herramienta seleccionada
@@ -270,14 +374,6 @@ const iaOutputCost = iaOutputChars > 0
   // ── Colores por acción ────────────────────────────────────────────────
   const actionColor = action === 'audio' ? '#7C3AED' : action === 'ia' ? '#059669' : '#F97316'
   const actionLabel = action === 'audio' ? 'Audio completo' : action === 'ia' ? 'Explicación' : 'Combo'
- 
-  // ── Cost card label en step 1 ─────────────────────────────────────────
-  const costLabel =
-  action === 'audio'
-    ? '🔥 Descuento por volumen aplicado ($10 MXN por cada 1,000 caracteres)'
-    : action === 'ia'
-    ? '🔥 Descuento por volumen aplicado ($5 MXN por cada 1,000 caracteres de texto de salida)'
-    : `🔥 Explicación ${formatPrice(iaInputCost + iaOutputCost)} + Audio ${formatPrice(audioCost)}`
  
   // ── Handlers ──────────────────────────────────────────────────────────
   const handleClearFile = () => {
@@ -362,6 +458,11 @@ const iaOutputCost = iaOutputChars > 0
           fileName: file.name,
           mode: iaMode,
           extension: finalExtension,
+          // Dato de la extracción previa (server-side, calculado de los bytes
+          // reales del archivo en /api/extract-text) — no es un dato de
+          // seguridad infalsificable. Si falta o es inválido, el backend cae
+          // a su propio cálculo autoderivado del texto.
+          declaredPageCount: pageMetrics?.total,
         }),
       })
 
@@ -372,9 +473,11 @@ const iaOutputCost = iaOutputChars > 0
       )
 
       if (iaData.error) {
+        const isLimit = iaRes.status === 403
         setErrorModal({
-          type: iaRes.status === 403 ? 'limit' : 'other',
+          type: isLimit ? 'limit' : 'other',
           message: iaData.error,
+          title: isLimit ? pickLimitErrorTitle(iaData.error) : undefined,
         })
         setLoading(false)
         return
@@ -403,7 +506,25 @@ const iaOutputCost = iaOutputChars > 0
         const outputName = `explicacion_${file.name.replace(/\.[^/.]+$/, '')}`
         setPendingResult(formattedResult)
         setPendingFileName(outputName)
-        setPendingHistoryData(historyBase)  // ← se guarda en Supabase cuando el usuario elija formato
+        setPendingHistoryData(historyBase)  // ← se actualiza en Supabase si el usuario elige formato
+
+        // La fila ya existe en document_history desde ia-explain (recordUsage),
+        // "Sin formato" — se avisa de inmediato sin esperar a que el usuario
+        // decida el modal, para que quede visible en Historial aunque cierre
+        // la pestaña o pulse "Guardar sin formato" a continuación.
+        onSaved?.({
+          id:              iaData.historyId,
+          user_id:         session.user.id,
+          file_name:       historyBase.fileName,
+          result_text:     historyBase.resultText,
+          mode:            getModeLabel(historyBase.mode),
+          result_length:   getLengthLabel(historyBase.length),
+          output_format:   null,
+          output_format_known: true,
+          output_filename: null,
+          created_at:      new Date().toISOString(),
+        })
+
         setFormatModal(true)
         setLoading(false)
         return
@@ -425,6 +546,10 @@ const iaOutputCost = iaOutputChars > 0
     }
   }
  
+  // ── Preview del documento: siempre refleja la herramienta seleccionada real ──
+  const activeToolSpaceIdx = IA_MODES[iaMode].label.indexOf(' ')
+  const activeToolLabel = activeToolSpaceIdx > -1 ? IA_MODES[iaMode].label.slice(activeToolSpaceIdx + 1) : IA_MODES[iaMode].label
+
   // ── Render ────────────────────────────────────────────────────────────
   const handleDownloadFormat = async (format: 'txt' | 'docx' | 'pdf') => {
     setFormatModal(false)
@@ -466,119 +591,363 @@ const iaOutputCost = iaOutputChars > 0
     }
   }
   return (
-    <section className={styles.wizard}>
+    <section className={`${styles.wizard} ${showToolsWithUpload ? styles.wizardWide : ''}`}>
  
       {/* ── CABECERA ── */}
-      <div className={styles.wizardHeader}>
-        <span className={styles.badge}>⭐ Función Plus</span>
-        <h2 className={styles.title}>
-          Archivo <small className={styles.titleSub}>(PDF, Word o TXT)</small>
-        </h2>
-        <p className={styles.subtitle}>Elige qué quieres hacer con tu documento.</p>
-      </div>
- 
-      {/* ── PASO 1: ARCHIVO ── */}
-      <div className={styles.stepSection}>
-        <div className={styles.stepHeader}>
-          <div className={`${styles.stepCircle} ${step >= 1 ? styles.stepCircleActive : ''}`}>
-            {step > 1 ? '✓' : '1'}
-          </div>
-          <h3 className={styles.stepTitle}>{step > 1 ? 'Tu archivo' : 'Sube tu documento'}</h3>
+      {!showToolsWithUpload && (
+        <div className={styles.wizardHeader}>
+          <span className={styles.badge}>⭐ Función Plus</span>
+          <h2 className={styles.title}>
+            Archivo <small className={styles.titleSub}>(PDF, Word o TXT)</small>
+          </h2>
+          <p className={styles.subtitle}>Elige qué quieres hacer con tu documento.</p>
         </div>
- 
-        {step === 1 && (
-          <label
-            className={styles.uploadZone}
-            htmlFor="fileInput"
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleUpload(f) }}
-          >
-            <input
-              type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
-            />
-            <div className={styles.uploadContent}>
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <path d="M24 30V14M24 14L18 20M24 14L30 20" stroke="#00c9a7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M10 34c0 3.3 2.7 6 6 6h16c3.3 0 6-2.7 6-6" stroke="#00c9a7" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-              <strong>Arrastra tu archivo aquí</strong>
-              <span className={styles.uploadLink}>o haz clic para seleccionar</span>
-              <small>Formatos soportados: PDF, DOCX, TXT</small>
-              <small>Tamaño máximo: 50 MB</small>
+      )}
+
+      {/* ── PASO 1: ARCHIVO ── */}
+      <div className={`${styles.stepSection} ${showToolsWithUpload ? styles.documentCard : ''}`}>
+        {!showToolsWithUpload && (
+          <div className={styles.stepHeader}>
+            <div className={`${styles.stepCircle} ${step >= 1 ? styles.stepCircleActive : ''}`}>
+              {step > 1 ? '✓' : '1'}
             </div>
-          </label>
+            <h3 className={styles.stepTitle}>{step > 1 ? 'Tu archivo' : 'Sube tu documento'}</h3>
+          </div>
         )}
- 
-        {step > 1 && file && (
-          <div className={styles.fileRow}>
-            <div className={styles.fileCard} style={{ position: 'relative' }}>
-              <span className={styles.fileIcon}>{fileTypeIcon(file.name)}</span>
-              <div>
-                <p className={styles.fileName} title={file.name}>
-                  {file.name.length > 30 ? file.name.substring(0, 27) + '...' : file.name}
-                </p>
-                <p className={styles.fileMeta}>
-                  {fmtBytes(fileSize)} &nbsp;•&nbsp; {charCount?.toLocaleString('es-MX')} caracteres aprox.
-                </p>
-                <p className={styles.fileOk}>✅ Archivo cargado correctamente</p>
-                {pageMetrics && (
-                  <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:8 }}>
-                    <span style={{
-                      display:'inline-flex', alignItems:'center', gap:4,
-                      background:'#0BB89A18', border:'1px solid #0BB89A44',
-                      borderRadius:20, padding:'2px 10px', fontSize:11, color:'#0BB89A', fontWeight:600
-                    }}>📄 {pageMetrics.total} {pageMetrics.total === 1 ? 'página' : 'páginas'}</span>
 
-                    {pageMetrics.text > 0 && (
-                      <span style={{
-                        display:'inline-flex', alignItems:'center', gap:4,
-                        background:'#16a34a18', border:'1px solid #16a34a44',
-                        borderRadius:20, padding:'2px 10px', fontSize:11, color:'#16a34a', fontWeight:600
-                      }}>✓ {pageMetrics.text} con texto</span>
-                    )}
+        {showToolsWithUpload ? (
+          <div className={styles.documentLayout}>
+            <div className={styles.documentUpload}>
+              {step === 1 && (
+                <label
+                  className={`${styles.uploadZone} ${styles.documentUploadZone}`}
+                  htmlFor="fileInput"
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleUpload(f) }}
+                >
+                  <input
+                    type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
+                  />
+                  <div className={styles.uploadContent}>
+                    <div className={styles.documentUploadIconWrap}>
+                      <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+                        <path d="M24 30V14M24 14L18 20M24 14L30 20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M10 34c0 3.3 2.7 6 6 6h16c3.3 0 6-2.7 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <strong className={styles.documentUploadTitle}>Arrastra tu documento aquí</strong>
+                    <span className={styles.documentUploadBtn}>Elegir archivo</span>
+                    <small className={styles.documentUploadCaption}>PDF, DOCX, TXT · Máx. 50 MB</small>
+                  </div>
+                </label>
+              )}
 
-                    {pageMetrics.scanned > 0 && (
-                      <span style={{
-                        display:'inline-flex', alignItems:'center', gap:4,
-                        background:'#F5920A18', border:'1px solid #F5920A44',
-                        borderRadius:20, padding:'2px 10px', fontSize:11, color:'#F5920A', fontWeight:600
-                      }}>⚠ {pageMetrics.scanned} escaneada{pageMetrics.scanned > 1 ? 's' : ''}</span>
+              {step > 1 && file && (
+                <div className={styles.fileRow}>
+                  <div className={styles.fileCard} style={{ position: 'relative' }}>
+                    <span className={styles.fileIcon}>
+                      {(() => {
+                        const icon = fileTypeIcon(file.name)
+                        return icon.kind === 'image'
+                          ? <img src={icon.src} alt="" className={styles.fileIconImg} />
+                          : icon.glyph
+                      })()}
+                    </span>
+                    <div>
+                      <p className={styles.fileName} title={file.name}>
+                        {file.name.length > 30 ? file.name.substring(0, 27) + '...' : file.name}
+                      </p>
+                      <p className={styles.fileMeta}>
+                        {fmtBytes(fileSize)} &nbsp;•&nbsp; {charCount?.toLocaleString('es-MX')} caracteres aprox.
+                      </p>
+                      <p className={styles.fileOk}>✅ Archivo cargado correctamente</p>
+                      {pageMetrics && (
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:8 }}>
+                          <span style={{
+                            display:'inline-flex', alignItems:'center', gap:4,
+                            background:'#0BB89A18', border:'1px solid #0BB89A44',
+                            borderRadius:20, padding:'2px 10px', fontSize:11, color:'#0BB89A', fontWeight:600
+                          }}>📄 {pageMetrics.total} {pageMetrics.total === 1 ? 'página' : 'páginas'}</span>
+
+                          {pageMetrics.text > 0 && (
+                            <span style={{
+                              display:'inline-flex', alignItems:'center', gap:4,
+                              background:'#16a34a18', border:'1px solid #16a34a44',
+                              borderRadius:20, padding:'2px 10px', fontSize:11, color:'#16a34a', fontWeight:600
+                            }}>✓ {pageMetrics.text} con texto</span>
+                          )}
+
+                          {pageMetrics.scanned > 0 && (
+                            <span style={{
+                              display:'inline-flex', alignItems:'center', gap:4,
+                              background:'#F5920A18', border:'1px solid #F5920A44',
+                              borderRadius:20, padding:'2px 10px', fontSize:11, color:'#F5920A', fontWeight:600
+                            }}>⚠ {pageMetrics.scanned} escaneada{pageMetrics.scanned > 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleClearFile}
+                      title="Quitar archivo"
+                      style={{
+                        position: 'absolute', top: 10, right: 10,
+                        background: '#fee2e2', border: 'none', borderRadius: '50%',
+                        width: 28, height: 28, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14, color: '#dc2626', fontWeight: 700, lineHeight: 1,
+                      }}
+                    >✕</button>
+                  </div>
+
+                  {hideCostUI ? (
+                    <div className={styles.costCard}>
+                      <div className={styles.costCardIcon}>📊</div>
+                      <div>
+                        <p className={styles.costCardLabel}>Este documento consumirá</p>
+                        <p className={styles.costCardPrice} style={{ color: actionColor }}>1 uso</p>
+                        <p className={styles.costCardNote}>
+                          {pageMetrics
+                            ? `Aprox. ${pageMetrics.total} ${pageMetrics.total === 1 ? 'página' : 'páginas'}`
+                            : 'Analizando páginas del documento…'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={styles.costCard}>
+                      <div className={styles.costCardIcon}>🔒</div>
+                      <div>
+                        <p className={styles.costCardLabel}>Necesitas un plan activo</p>
+                        <p className={styles.costCardNote}>Elige un plan para generar este documento.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.documentTools}>
+              <p className={styles.documentToolsTitle}>¿Qué quieres hacer con tu documento?</p>
+              <div className={styles.toolList}>
+                {IA_MODES.map((m, i) => {
+                  const enabled = step > 1
+                  const spaceIdx = m.label.indexOf(' ')
+                  const toolIcon = spaceIdx > -1 ? m.label.slice(0, spaceIdx) : m.label
+                  const toolLabel = spaceIdx > -1 ? m.label.slice(spaceIdx + 1) : m.label
+                  const toolIconColor = TOOL_ICON_COLORS[i]
+                  return (
+                    <label
+                      key={i}
+                      className={`${styles.toolCard} ${enabled && iaMode === i ? styles.toolCardActive : ''} ${!enabled ? styles.toolCardPreview : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="iaModeUpfront"
+                        className={styles.toolCardRadio}
+                        checked={enabled && iaMode === i}
+                        disabled={!enabled}
+                        onChange={() => { if (enabled) setIaMode(i) }}
+                      />
+                      <span className={`${styles.toolCardIcon} ${styles[toolIconColor]}`}>{toolIcon}</span>
+                      <div className={styles.toolCardBody}>
+                        <strong>{toolLabel}</strong>
+                        <p>{m.desc}</p>
+                      </div>
+                      <span className={styles.toolCardArrow} aria-hidden="true">›</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {step === 1 && (
+              <label
+                className={styles.uploadZone}
+                htmlFor="fileInput"
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleUpload(f) }}
+              >
+                <input
+                  type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
+                />
+                <div className={styles.uploadContent}>
+                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                    <path d="M24 30V14M24 14L18 20M24 14L30 20" stroke="#00c9a7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10 34c0 3.3 2.7 6 6 6h16c3.3 0 6-2.7 6-6" stroke="#00c9a7" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                  <strong>Arrastra tu archivo aquí</strong>
+                  <span className={styles.uploadLink}>o haz clic para seleccionar</span>
+                  <small>Formatos soportados: PDF, DOCX, TXT</small>
+                  <small>Tamaño máximo: 50 MB</small>
+                </div>
+              </label>
+            )}
+
+            {step > 1 && file && (
+              <div className={styles.fileRow}>
+                <div className={styles.fileCard} style={{ position: 'relative' }}>
+                  <span className={styles.fileIcon}>
+                    {(() => {
+                      const icon = fileTypeIcon(file.name)
+                      return icon.kind === 'image'
+                        ? <img src={icon.src} alt="" className={styles.fileIconImg} />
+                        : icon.glyph
+                    })()}
+                  </span>
+                  <div>
+                    <p className={styles.fileName} title={file.name}>
+                      {file.name.length > 30 ? file.name.substring(0, 27) + '...' : file.name}
+                    </p>
+                    <p className={styles.fileMeta}>
+                      {fmtBytes(fileSize)} &nbsp;•&nbsp; {charCount?.toLocaleString('es-MX')} caracteres aprox.
+                    </p>
+                    <p className={styles.fileOk}>✅ Archivo cargado correctamente</p>
+                    {pageMetrics && (
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:8 }}>
+                        <span style={{
+                          display:'inline-flex', alignItems:'center', gap:4,
+                          background:'#0BB89A18', border:'1px solid #0BB89A44',
+                          borderRadius:20, padding:'2px 10px', fontSize:11, color:'#0BB89A', fontWeight:600
+                        }}>📄 {pageMetrics.total} {pageMetrics.total === 1 ? 'página' : 'páginas'}</span>
+
+                        {pageMetrics.text > 0 && (
+                          <span style={{
+                            display:'inline-flex', alignItems:'center', gap:4,
+                            background:'#16a34a18', border:'1px solid #16a34a44',
+                            borderRadius:20, padding:'2px 10px', fontSize:11, color:'#16a34a', fontWeight:600
+                          }}>✓ {pageMetrics.text} con texto</span>
+                        )}
+
+                        {pageMetrics.scanned > 0 && (
+                          <span style={{
+                            display:'inline-flex', alignItems:'center', gap:4,
+                            background:'#F5920A18', border:'1px solid #F5920A44',
+                            borderRadius:20, padding:'2px 10px', fontSize:11, color:'#F5920A', fontWeight:600
+                          }}>⚠ {pageMetrics.scanned} escaneada{pageMetrics.scanned > 1 ? 's' : ''}</span>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                  <button
+                    onClick={handleClearFile}
+                    title="Quitar archivo"
+                    style={{
+                      position: 'absolute', top: 10, right: 10,
+                      background: '#fee2e2', border: 'none', borderRadius: '50%',
+                      width: 28, height: 28, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, color: '#dc2626', fontWeight: 700, lineHeight: 1,
+                    }}
+                  >✕</button>
+                </div>
+
+                <div className={styles.costCard}>
+                  <div className={styles.costCardIcon}>🔒</div>
+                  <div>
+                    <p className={styles.costCardLabel}>Necesitas un plan activo</p>
+                    <p className={styles.costCardNote}>Elige un plan para generar este documento.</p>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={handleClearFile}
-                title="Quitar archivo"
-                style={{
-                  position: 'absolute', top: 10, right: 10,
-                  background: '#fee2e2', border: 'none', borderRadius: '50%',
-                  width: 28, height: 28, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, color: '#dc2626', fontWeight: 700, lineHeight: 1,
-                }}
-              >✕</button>
-            </div>
- 
-            <div className={styles.costCard}>
-              <div className={styles.costCardIcon}>🏷️</div>
-              <div>
-                <p className={styles.costCardLabel}>Costo estimado</p>
-                <p className={styles.costCardPrice} style={{ color: actionColor }}>
-                  {formatPrice(totalCost)}
-                </p>
-                <p className={styles.costCardNote}>{costLabel}</p>
-              </div>
-            </div>
-          </div>
+            )}
+          </>
         )}
- 
+
         {step > 1 && (
           <p className={styles.secureNote}>🔒 Tus documentos se procesan de forma segura. Si inicias sesión, podrás volver a descargarlos desde tu historial cuando quieras.</p>
         )}
       </div>
- 
+
+      {/* ── PREVIEW DEL DOCUMENTO: siempre visible, refleja la herramienta y archivo reales ── */}
+      {showToolsWithUpload && (
+        <>
+          <p className={styles.documentPreviewEyebrow}>Así verás tu documento</p>
+
+          <div className={styles.documentPreviewBlock}>
+            <div className={styles.previewMockHeader}>
+              <div className={styles.previewMockFileGroup}>
+                <span className={styles.previewMockFile}>Así se verá tu documento</span>
+                <span className={styles.previewMockFileSub}>Ejemplo de resultado</span>
+              </div>
+              <span className={styles.previewMockBadge}>
+                {file ? (file.name.split('.').pop()?.toUpperCase() ?? 'PDF') : 'PDF'}
+              </span>
+              {pageMetrics && (
+                <span className={styles.previewMockPages}>
+                  {pageMetrics.total} {pageMetrics.total === 1 ? 'página' : 'páginas'}
+                </span>
+              )}
+            </div>
+
+            <div className={styles.previewMockBody}>
+              <div className={styles.previewMockSidebar}>
+                {PREVIEW_TOOL_NAMES.map((name, i) => (
+                  <div
+                    key={name}
+                    className={`${styles.previewMockToolItem} ${i === iaMode ? styles.previewMockToolItemActive : ''}`}
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+
+              <div className={styles.previewMockContent}>
+                <p className={styles.previewMockTitle}>{activeToolLabel}</p>
+                {(() => {
+                  const content = DOCUMENT_PREVIEW_CONTENT[iaMode] ?? DOCUMENT_PREVIEW_CONTENT[0]
+                  switch (content.kind) {
+                    case 'paragraphs':
+                      return content.items.map((p, i) => (
+                        <p key={i} className={styles.previewMockText}>{p}</p>
+                      ))
+                    case 'bullets':
+                      return (
+                        <ul className={styles.previewMockBullets}>
+                          {content.items.map((item, i) => <li key={i}>{item}</li>)}
+                        </ul>
+                      )
+                    case 'qa':
+                      return (
+                        <div className={styles.previewMockQaList}>
+                          {content.items.map((item, i) => (
+                            <div key={i} className={styles.previewMockQaItem}>
+                              <strong>{item.q}</strong>
+                              <p>{item.a}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    case 'sections':
+                      return (
+                        <div className={styles.previewMockSections}>
+                          {content.items.map((sec, i) => (
+                            <div key={i} className={styles.previewMockSection}>
+                              <strong>{sec.title}</strong>
+                              <ul>
+                                {sec.points.map((pt, j) => <li key={j}>{pt}</li>)}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    case 'findings':
+                      return (
+                        <ul className={styles.previewMockFindings}>
+                          {content.items.map((item, i) => <li key={i}>{item}</li>)}
+                        </ul>
+                      )
+                  }
+                })()}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* ── PASO 2: ELEGIR SERVICIO ── */}
       {allowAudio && step >= 2 && (
         <div className={styles.stepSection}>
@@ -633,21 +1002,23 @@ const iaOutputCost = iaOutputChars > 0
  
       {/* ── PASO 3: CONFIGURAR ── */}
       {step >= 3 && (
-        <div className={styles.stepSection} ref={step3Ref}>
-          <div className={styles.stepHeader}>
-            <div className={`${styles.stepCircle} ${styles.stepCircleActive}`}>{allowAudio ? '3' : '2'}</div>
-            <h3 className={styles.stepTitle}>
-              {action === 'ambos' ? 'Personaliza tu pedido (combo)' :
-               action === 'audio' ? 'Configura tu servicio' : 'Configura tu explicación'}
-            </h3>
-            <span
-              className={styles.serviceBadge}
-              style={{ background: `${actionColor}18`, color: actionColor, borderColor: `${actionColor}40` }}
-            >
-              Servicio seleccionado: {actionLabel}
-            </span>
-          </div>
- 
+        <div className={`${styles.stepSection} ${showToolsWithUpload ? styles.documentCard : ''}`} ref={step3Ref}>
+          {!showToolsWithUpload && (
+            <div className={styles.stepHeader}>
+              <div className={`${styles.stepCircle} ${styles.stepCircleActive}`}>{allowAudio ? '3' : '2'}</div>
+              <h3 className={styles.stepTitle}>
+                {action === 'ambos' ? 'Personaliza tu pedido (combo)' :
+                 action === 'audio' ? 'Configura tu servicio' : 'Configura tu explicación'}
+              </h3>
+              <span
+                className={styles.serviceBadge}
+                style={{ background: `${actionColor}18`, color: actionColor, borderColor: `${actionColor}40` }}
+              >
+                Servicio seleccionado: {actionLabel}
+              </span>
+            </div>
+          )}
+
           {/* ── AUDIO solo ── */}
           {action === 'audio' && (
             <div className={styles.configGrid}>
@@ -700,8 +1071,29 @@ const iaOutputCost = iaOutputChars > 0
             </div>
           )}
  
-          {/* ── IA solo ── */}
-          {action === 'ia' && (
+          {/* ── IA solo, landing (showToolsWithUpload): solo el control real (extensión del resumen).
+               El resto ("Nivel de explicación", "Costo del texto explicado", "Así se verá tu resultado")
+               era decorativo/duplicado — ya se comunica en la tarjeta de herramienta y en el preview
+               dinámico de arriba (documentPreviewBlock), y el costo ya está en el costCard del paso 1. ── */}
+          {action === 'ia' && showToolsWithUpload && iaMode === 1 && (
+            <div className={styles.documentExtensionRow}>
+              <span className={styles.documentExtensionLabel}>Extensión del resumen</span>
+              <div className={styles.documentExtensionPills}>
+                {EXTENSIONES.map(e => (
+                  <button
+                    key={e.value}
+                    type="button"
+                    className={`${styles.documentExtensionPill} ${extension === e.value ? styles.documentExtensionPillActive : ''}`}
+                    onClick={() => setExtension(e.value)}
+                  >
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {action === 'ia' && !showToolsWithUpload && (
             <>
             <div className={styles.configGrid}>
               <div className={styles.configBlock}>
@@ -937,30 +1329,77 @@ const iaOutputCost = iaOutputChars > 0
             </>
           )}
  
-          <div className={styles.payNote}>
-            🔒 Para generar {action === 'ia' ? 'la explicación' : action === 'audio' ? 'el audio' : 'la explicación y el audio'} necesitas pagar primero.<br />
-            Así protegemos tu información y tu pedido.
-          </div>
- 
-          <button
-            className={styles.payBtn}
-            style={{ background: actionColor }}
-            onClick={handlePayAndGenerate}
-            disabled={loading}
-          >
-            {loading ? (
-              <>⏳ Procesando... </>
+          <div className={`${styles.payNote} ${hideCostUI ? styles.payNoteInfo : ''}`}>
+            {hideCostUI ? (
+              usingBetaAccess ? (
+                <>📄 Este documento se generará usando tu acceso Beta.</>
+              ) : (
+                <>📄 Este documento se generará usando tu plan actual.</>
+              )
             ) : (
-              <>🔒 Pagar y generar {action === 'audio' ? 'audio' : action === 'ia' ? 'explicación' : 'explicación + audio'}</>
+              <>Necesitas un plan activo para generar este documento.</>
             )}
-            <span className={styles.payBtnSub}>Pago 100% seguro</span>
-          </button>
+          </div>
+
+          {hideCostUI ? (
+            <button
+              className={`${styles.payBtn} ${showToolsWithUpload ? styles.payBtnLarge : ''} ${styles.payBtnBrand}`}
+              onClick={handlePayAndGenerate}
+              disabled={loading || generationLocked || accessChecking}
+            >
+              {loading ? (
+                <>⏳ Procesando... </>
+              ) : accessChecking ? (
+                <>Verificando tu acceso…</>
+              ) : (
+                <>Generar {action === 'audio' ? 'audio' : action === 'ia' ? 'explicación' : 'explicación + audio'}</>
+              )}
+            </button>
+          ) : (
+            // Sin Mercado Pago todavía: este CTA de la landing pública nunca llama
+            // a ia-explain — solo lleva a elegir un plan. El flujo real de pago por
+            // documento sigue sin existir (ver dashboard: hideCostUI=true arriba).
+            <button
+              className={`${styles.payBtn} ${showToolsWithUpload ? styles.payBtnLarge : ''}`}
+              style={{ background: actionColor }}
+              onClick={() => { window.location.href = '/#planes' }}
+            >
+              Ver planes
+            </button>
+          )}
+
+          {/* Acceso (Fase 3, dashboard) — puramente informativo, sin estilos de
+              módulo nuevos (solo inline) porque no se toca FileWizard.module.css
+              en esta fase. El enforcement real sigue siendo el backend. */}
+          {!accessChecking && generationLocked && (
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#9090aa', margin: '10px 0 0', lineHeight: 1.5 }}>
+              {lockedMessage ?? 'Necesitas un plan activo o acceso beta para generar.'}{' '}
+              {onOpenAccessOptions && (
+                <button
+                  type="button"
+                  onClick={onOpenAccessOptions}
+                  style={{ background: 'none', border: 'none', padding: 0, color: '#00c9a7', fontSize: 12, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+                >
+                  Ver opciones
+                </button>
+              )}
+              {onRetryAccessCheck && (
+                <button
+                  type="button"
+                  onClick={onRetryAccessCheck}
+                  style={{ background: 'none', border: 'none', padding: 0, color: '#00c9a7', fontSize: 12, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+                >
+                  Reintentar
+                </button>
+              )}
+            </p>
+          )}
  
           <div className={styles.trustRow}>
             {[
               { icon:'🛡️', title:'Seguro y privado',  desc:'Tus documentos están protegidos. Si inicias sesión, los conservas en tu historial.' },
               { icon:'⚡', title:'Rápido y potente',   desc:'IA avanzada + voces naturales de alta calidad.' },
-              { icon:'🔓', title:'Tú tienes el control',desc:'Eliges qué hacer y cuánto quieres pagar.' },
+              { icon:'🔓', title:'Tú tienes el control',desc: hideCostUI ? 'Eliges qué herramienta usar en cada documento.' : 'Eliges qué hacer y cuánto quieres pagar.' },
             ].map(t => (
               <div key={t.title} className={styles.trustItem}>
                 <span className={styles.trustIcon}>{t.icon}</span>
@@ -972,7 +1411,7 @@ const iaOutputCost = iaOutputChars > 0
             ))}
           </div>
  
-          <div className={styles.disclaimer}>
+          <div className={`${styles.disclaimer} ${hideCostUI ? styles.disclaimerMuted : ''}`}>
             ⚠️ <strong>Aviso importante:</strong> Las explicaciones generadas por nuestra IA son orientativas.{' '}
             <strong>No constituyen asesoramiento legal, médico ni profesional.</strong>
           </div>
@@ -1000,9 +1439,9 @@ const iaOutputCost = iaOutputChars > 0
 
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
               {([
-                { format:'txt',  icon:'🗒️', label:'Texto plano (.txt)',  desc:'Ligero, abre en cualquier dispositivo', color:'#64748b' },
-                { format:'docx', icon:'📝', label:'Word (.docx)',         desc:'Para editar y personalizar fácilmente', color:'#2563eb' },
-                { format:'pdf',  icon:'📕', label:'PDF',                  desc:'Para compartir, imprimir o archivar',  color:'#dc2626' },
+                { format:'txt',  icon:'/dashboard/icons/file-txt.png',  label:'Texto plano (.txt)',  desc:'Ligero, abre en cualquier dispositivo', color:'#64748b' },
+                { format:'docx', icon:'/dashboard/icons/file-docx.png', label:'Word (.docx)',         desc:'Para editar y personalizar fácilmente', color:'#2563eb' },
+                { format:'pdf',  icon:'/dashboard/icons/file-pdf.png',  label:'PDF',                  desc:'Para compartir, imprimir o archivar',  color:'#dc2626' },
               ] as const).map(({ format, icon, label, desc, color }) => (
                 <button
                   key={format}
@@ -1015,7 +1454,11 @@ const iaOutputCost = iaOutputChars > 0
                   onMouseEnter={e => { e.currentTarget.style.background='#0BB89A20'; e.currentTarget.style.borderColor='#0BB89A' }}
                   onMouseLeave={e => { e.currentTarget.style.background='#152E29'; e.currentTarget.style.borderColor='#1e4a40' }}
                 >
-                  <span style={{ fontSize:30, flexShrink:0 }}>{icon}</span>
+                  <img
+                    src={icon}
+                    alt=""
+                    style={{ width:30, height:30, objectFit:'contain', flexShrink:0, transform:'scale(1.2)', transformOrigin:'center' }}
+                  />
                   <div style={{ flex:1 }}>
                     <p style={{ color:'#fff', fontWeight:600, margin:0, fontSize:14 }}>{label}</p>
                     <p style={{ color:'#89bdb5', margin:0, fontSize:12, marginTop:2 }}>{desc}</p>
@@ -1027,17 +1470,6 @@ const iaOutputCost = iaOutputChars > 0
                 </button>
               ))}
             </div>
-
-            <button
-              onClick={() => setFormatModal(false)}
-              style={{
-                marginTop:14, width:'100%', padding:'10px',
-                background:'transparent', border:'1px solid #2a5a50',
-                borderRadius:8, color:'#89bdb5', cursor:'pointer', fontSize:13
-              }}
-            >
-              Cancelar
-            </button>
           </div>
         </div>
       )}
@@ -1075,7 +1507,7 @@ const iaOutputCost = iaOutputChars > 0
               fontSize: errorModal.type === 'limit' ? 20 : 18,
               fontWeight:700
             }}>
-              {errorModal.type === 'limit' ? 'Alcanzaste el límite de tu plan' : 'No pudimos procesar el documento'}
+              {errorModal.type === 'limit' ? (errorModal.title ?? 'Alcanzaste el límite de tu plan') : 'No pudimos procesar el documento'}
             </h3>
 
             <p style={{
@@ -1114,13 +1546,13 @@ const iaOutputCost = iaOutputChars > 0
           display:'flex', alignItems:'center', justifyContent:'center', zIndex:1100
         }}>
           <div style={{
-            background:'#0D2B26', borderRadius:24, padding:'52px 64px', width:'min(92vw, 620px)',
+            background:'#0D2B26', borderRadius:24, padding:'clamp(24px, 8vw, 52px) clamp(20px, 8vw, 64px)', width:'min(92vw, 620px)',
             boxShadow:'0 24px 64px rgba(0,0,0,0.6)', border:'1px solid #1a4a40', minHeight:'320px',
             display:'flex', flexDirection:'column', alignItems:'center', gap:22, justifyContent:'center',
             textAlign:'center'
           }}>
             <div className={styles.downloadSpinner} />
-            <p style={{ color:'#fff', fontWeight:700, fontSize:30, lineHeight:1.2, margin:0 }}>
+            <p style={{ color:'#fff', fontWeight:700, fontSize:'clamp(20px, 6vw, 30px)', lineHeight:1.2, margin:0 }}>
               Generando documento…
             </p>
             <p style={{ color:'#b8d8d3', fontSize:18, margin:0, lineHeight:1.7,  maxWidth:'460px'}}>

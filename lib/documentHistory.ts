@@ -8,6 +8,11 @@ export type DocumentHistorySummary = {
   result_length: string
   page_count: number | null
   output_format: string | null
+  // false en filas legacy (creadas antes de este campo, default de columna) —
+  // en esas filas output_format=NULL no dice nada y effectiveFormat() infiere
+  // del nombre de archivo. true en filas nuevas — ahí NULL es una decisión
+  // real ("Sin formato"), nunca se infiere. Ver effectiveFormat() abajo.
+  output_format_known: boolean
   output_filename: string | null
   created_at: string
 }
@@ -46,6 +51,104 @@ export type DocumentHistoryQuery = {
   sort?: SortOption
 }
 
+// ── Formato efectivo de un documento (clasificación visual + filtro) ───────
+//
+// Fuente única de verdad: qué valores de output_format son válidos, y qué
+// extensiones de nombre de archivo corresponden a cada bucket. La usan tanto
+// las cláusulas SQL de fetchDocumentHistoryPage como effectiveFormat() (usado
+// por el dashboard para el ícono/badge de cada fila del historial).
+export const RECOGNIZED_OUTPUT_FORMATS = ['txt', 'docx', 'pdf'] as const
+const ALL_RECOGNIZED_SUFFIXES = ['txt', 'docx', 'doc', 'pdf'] as const
+const FORMAT_SUFFIXES: Record<'txt' | 'docx' | 'pdf', readonly string[]> = {
+  txt: ['txt'],
+  docx: ['docx', 'doc'], // .doc legacy se agrupa visualmente con DOCX
+  pdf: ['pdf'],
+}
+
+export type EffectiveFormat = 'txt' | 'docx' | 'pdf' | null
+
+function extensionBucket(name: string | null): EffectiveFormat {
+  if (!name) return null
+  const ext = name.split('.').pop()?.toLowerCase()
+  if (ext === 'txt') return 'txt'
+  if (ext === 'docx' || ext === 'doc') return 'docx'
+  if (ext === 'pdf') return 'pdf'
+  return null
+}
+
+// Precedencia: 1) output_format si es un valor reconocido -> ese formato,
+// siempre, sin importar output_format_known. 2) si no, y la fila es
+// "moderna" (output_format_known=true) -> null ("Sin formato") de forma
+// definitiva, SIN mirar output_filename/file_name — file_name es el archivo
+// ORIGINAL subido, nunca el resultado generado, así que nunca debe usarse
+// para inferir el formato de SALIDA de una fila que ya sabe distinguir esto.
+// 3) si la fila es legacy (output_format_known=false, default de columna en
+// filas anteriores a este campo) -> mismo fallback histórico sin cambios:
+// output_filename, si no, file_name, si no, null.
+export function effectiveFormat(item: {
+  output_format: string | null
+  output_format_known: boolean
+  output_filename: string | null
+  file_name: string
+}): EffectiveFormat {
+  if (
+    item.output_format &&
+    (RECOGNIZED_OUTPUT_FORMATS as readonly string[]).includes(item.output_format)
+  ) {
+    return item.output_format as EffectiveFormat
+  }
+  if (item.output_format_known) return null
+  return extensionBucket(item.output_filename) ?? extensionBucket(item.file_name)
+}
+
+function suffixHitClause(column: 'output_filename' | 'file_name', suffixes: readonly string[]): string {
+  const parts = suffixes.map(s => `${column}.ilike.%.${s}`)
+  return parts.length === 1 ? parts[0] : `or(${parts.join(',')})`
+}
+
+// "columna NULL, o no-NULL pero sin ninguna extensión reconocida" — null-safe:
+// NOT ILIKE sobre NULL da NULL/desconocido en SQL, no TRUE, por eso la rama
+// IS NULL se declara aparte en vez de confiar solo en el NOT ILIKE.
+function columnUnrecognizedOr(column: 'output_filename' | 'file_name'): string {
+  const notIlikeChain = ALL_RECOGNIZED_SUFFIXES.map(s => `${column}.not.ilike.%.${s}`).join(',')
+  return `${column}.is.null,and(${column}.not.is.null,${notIlikeChain})`
+}
+
+// "output_format NULL, o no-NULL pero no es txt/docx/pdf" — null-safe, mismo
+// motivo que arriba (NOT IN sobre NULL da NULL/desconocido, no TRUE).
+function outputFormatUnrecognizedOr(): string {
+  return `output_format.is.null,and(output_format.not.is.null,output_format.not.in.(${RECOGNIZED_OUTPUT_FORMATS.join(',')}))`
+}
+
+// Fila legacy = output_format_known.eq.false (default de columna en filas
+// anteriores a este campo) — únicas filas donde tier 2/3 (inferir de
+// output_filename/file_name) aplican. Ver effectiveFormat() arriba: una fila
+// "moderna" (known=true) nunca cae a estos niveles.
+const LEGACY_ROW = 'output_format_known.eq.false'
+
+function effectiveFormatOrClause(target: 'txt' | 'docx' | 'pdf'): string {
+  const suffixes = FORMAT_SUFFIXES[target]
+  const tier1Miss = `or(${outputFormatUnrecognizedOr()})`
+  const tier2Hit = suffixHitClause('output_filename', suffixes)
+  const tier2Miss = `or(${columnUnrecognizedOr('output_filename')})`
+  const tier3Hit = suffixHitClause('file_name', suffixes)
+  return [
+    `output_format.eq.${target}`,
+    `and(${tier1Miss},${LEGACY_ROW},${tier2Hit})`,
+    `and(${tier1Miss},${LEGACY_ROW},${tier2Miss},${tier3Hit})`,
+  ].join(',')
+}
+
+// effectiveFormat() === null ("Sin formato"): dos casos disjuntos —
+// A) fila moderna sin output_format reconocido (known=true, nunca infiere), o
+// B) fila legacy donde ni output_filename ni file_name reconocen nada.
+function noneFormatOrClause(): string {
+  const tier1Miss = `or(${outputFormatUnrecognizedOr()})`
+  const caseModernNone = `and(${tier1Miss},output_format_known.eq.true)`
+  const caseLegacyUnrecognized = `and(${tier1Miss},${LEGACY_ROW},or(${columnUnrecognizedOr('output_filename')}),or(${columnUnrecognizedOr('file_name')}))`
+  return [caseModernNone, caseLegacyUnrecognized].join(',')
+}
+
 // Sanea un término de búsqueda para usarlo en un patrón ILIKE dentro de un
 // filtro .or() de PostgREST. Se elimina únicamente la comilla doble (rompería
 // el envoltorio de comillas que protege , y ) como texto literal). % y _ se
@@ -74,7 +177,7 @@ export async function fetchDocumentHistoryPage(
   let builder = supabase
     .from('document_history')
     .select(
-      'id, user_id, file_name, mode, result_length, page_count, output_format, output_filename, created_at',
+      'id, user_id, file_name, mode, result_length, page_count, output_format, output_format_known, output_filename, created_at',
       { count: 'exact' }
     )
     .eq('user_id', userId)
@@ -96,13 +199,18 @@ export async function fetchDocumentHistoryPage(
   }
 
   if (query.outputFormat === 'none') {
-    builder = builder.is('output_format', null)
+    // Mismo resultado que effectiveFormat() === null — ver noneFormatOrClause().
+    builder = builder.or(noneFormatOrClause())
   } else if (query.outputFormat) {
-    builder = builder.eq('output_format', query.outputFormat)
+    builder = builder.or(effectiveFormatOrClause(query.outputFormat))
   }
 
   if (query.downloadableOnly) {
-    builder = builder.not('output_format', 'is', null).not('output_filename', 'is', null)
+    // "Descargable" = downloadFromHistory() puede producir un archivo real,
+    // lo cual depende únicamente de result_text (ver downloadTxt() y la rama
+    // de regenerar en app/dashboard/page.tsx) — no de output_format/
+    // output_filename, que solo deciden EN QUÉ formato se descarga.
+    builder = builder.not('result_text', 'is', null).neq('result_text', '')
   }
 
   switch (query.sort ?? 'created_desc') {
@@ -154,7 +262,7 @@ export async function fetchDocumentHistoryDetail(
   const { data, error } = await supabase
     .from('document_history')
     .select(
-      'id, user_id, file_name, mode, result_length, page_count, output_format, output_filename, created_at, original_text, result_text'
+      'id, user_id, file_name, mode, result_length, page_count, output_format, output_format_known, output_filename, created_at, original_text, result_text'
     )
     .eq('id', id)
     .eq('user_id', userId)

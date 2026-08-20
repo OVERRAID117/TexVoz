@@ -17,17 +17,102 @@
   color: #9090aa;
 }
 
-.container {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 2.5rem 1.5rem 4rem;
+/* ── Grid con banners laterales sticky (solo desktop ancho — ver media query) ── */
+
+.pageGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
 }
 
-/* ── Bienvenida ── */
+.sideBannerAside {
+  display: none;
+  min-width: 0;
+}
+
+.sideBannerSticky {
+  position: sticky;
+  top: 72px;
+  border-radius: 20px;
+  overflow: hidden;
+  max-height: calc(100vh - 96px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.sideBannerImg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 20px;
+}
+
+@media (min-width: 1600px) {
+  .pageGrid {
+    grid-template-columns: clamp(160px, 12vw, 230px) 1080px clamp(160px, 12vw, 230px);
+    gap: clamp(20px, 2vw, 32px);
+    align-items: stretch;
+    width: fit-content;
+    margin: 0 auto;
+  }
+  .sideBannerAside {
+    display: block;
+  }
+}
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+/* ── Hero / Bienvenida ──
+   La imagen vive como capa de fondo (position:absolute, detrás del texto,
+   pointer-events:none) dentro de .heroSection — no es un bloque aparte que
+   empuja el layout, así que puede ser más grande sin desplazar nada. Un
+   mask-image la desvanece hacia la izquierda para que se sienta integrada,
+   no pegada encima. */
+
+.heroSection {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  min-height: 190px;
+  padding: 28px 36px;
+  margin-bottom: 24px;
+  border-radius: 24px;
+  background: linear-gradient(120deg, #ffffff 0%, #f2faf8 100%);
+  border: 1px solid #ece7dc;
+}
+
+.heroBgWrap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.heroBgImage {
+  object-fit: contain;
+  object-position: right center;
+  opacity: 0.9;
+  -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,.95) 38%, rgba(0,0,0,0) 90%);
+  mask-image: linear-gradient(to left, rgba(0,0,0,.95) 38%, rgba(0,0,0,0) 90%);
+}
+
+.heroText {
+  position: relative;
+  z-index: 1;
+  max-width: 58%;
+}
 
 .welcomeTitle {
-  font-family: 'Instrument Serif', serif;
-  font-size: 32px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 26px;
   margin: 0 0 4px;
   color: #1a1a2e;
 }
@@ -35,10 +120,110 @@
 .welcomeSubtitle {
   color: #6b6b8a;
   font-size: 14px;
-  margin: 0 0 28px;
+  margin: 0;
 }
 
-/* ── Plan actual ── */
+@media (max-width: 640px) {
+  .heroText { max-width: 100%; }
+  .heroBgImage { opacity: 0.35; }
+}
+
+/* ── Resumen del plan ── */
+
+.summarySection {
+  margin-bottom: 32px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.summaryTile {
+  background: #fff;
+  border: 1px solid #ece7dc;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 10px rgba(26,26,46,.03);
+}
+
+.summaryTileLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9090aa;
+  margin-bottom: 6px;
+}
+
+.summaryTileValue {
+  display: block;
+  font-size: 18px;
+  font-weight: 900;
+  color: #1a1a2e;
+}
+
+.summaryTilePlanRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planActiveBadge {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #009e88;
+  background: #e6faf5;
+  border-radius: 20px;
+  padding: 2px 9px;
+}
+
+.summaryTileFootnote {
+  font-size: 11.5px;
+  color: #9090aa;
+  margin: 6px 0 0;
+}
+
+.summaryTileSkeleton {
+  opacity: .6;
+}
+
+.summaryTileValuePlaceholder {
+  display: block;
+  height: 18px;
+  width: 60%;
+  margin-top: 4px;
+  border-radius: 6px;
+  background: #f0eee7;
+}
+
+.summaryErrorBox {
+  background: #fff;
+  border: 1px dashed #ece7dc;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  color: #9090aa;
+  font-size: 13px;
+}
+
+.summaryErrorBox p {
+  margin: 0 0 10px;
+}
+
+@media (max-width: 900px) {
+  .summaryGrid { grid-template-columns: repeat(2, 1fr); }
+  .heroImageWrap { max-width: 220px; }
+}
+
+@media (max-width: 560px) {
+  .heroSection { flex-direction: column; align-items: flex-start; }
+  .heroImageWrap { width: 100%; max-width: 200px; align-self: center; }
+  .summaryGrid { grid-template-columns: 1fr; }
+}
+
+/* ── Plan actual (CTA sin plan activo) ── */
 
 .planCard {
   background: #fff;
@@ -48,7 +233,6 @@
   position: relative;
   transition: box-shadow .2s;
   width: 100%;
-  margin-bottom: 24px;
 }
 
 .planHeader {
@@ -73,7 +257,7 @@
 .btnPrimary {
   width: 100%;
   padding: 12px;
-  background: linear-gradient(135deg, #ffc947, #ff9f1c);
+  background: #00c9a7;
   border: none;
   border-radius: 10px;
   font-family: 'Nunito', sans-serif;
@@ -82,12 +266,12 @@
   color: #fff;
   cursor: pointer;
   transition: all .2s;
-  box-shadow: 0 4px 14px rgba(255,159,28,.3);
+  box-shadow: 0 4px 14px rgba(0,201,167,.3);
 }
 
 .btnPrimary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(255,159,28,.4);
+  box-shadow: 0 6px 20px rgba(0,201,167,.4);
 }
 
 /* ── Secciones ── */
@@ -100,39 +284,161 @@
   margin-bottom: 40px;
 }
 
-.sectionTitle {
-  font-family: 'Instrument Serif', serif;
+.workHeader {
+  margin-bottom: 18px;
+}
+
+.workEyebrow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #00a389;
+  margin: 0 0 7px;
+}
+
+.workEyebrowStar {
+  font-size: 11px;
+  color: #00c9a7;
+}
+
+.workEyebrow::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -5px;
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: #00c9a7;
+}
+
+.workTitle {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
   font-size: 22px;
+  color: #00a389;
+  margin: 0 0 7px;
+  line-height: 1.3;
+}
+
+.workTitleSub {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 400;
+  font-size: 13.5px;
+  color: #6b6b8a;
+  margin: 0;
+  line-height: 1.5;
+  max-width: 480px;
+}
+
+.sectionTitle {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 900;
+  font-size: 19px;
   color: #1a1a2e;
-  margin: 0 0 12px;
-  line-height: 1.2;
+  margin: 0 0 14px;
+  line-height: 1.3;
 }
 
 .sectionTitleFlex {
   margin: 0;
 }
 
-.workSubtitle {
+/* ── Consumo y plan (sección propia) ── */
+
+.consumoHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.consumoSubtitle {
   color: #6b6b8a;
   font-size: 14px;
-  margin: 0 0 20px;
+  margin: 0 0 18px;
 }
 
-/* ── Consumo del plan ── */
+.consumoLowerGrid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
 
-.consumptionCard {
+.consumoCardTitle {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1a1a2e;
+  margin: 0 0 12px;
+}
+
+.consumoChartCard {
   background: #fff;
-  border: 1px solid #e8e4dc;
+  border: 1px solid #ece7dc;
   border-radius: 16px;
-  padding: 1.5rem;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-.consumptionRow {
+.consumoChartEmpty {
+  color: #9090aa;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  margin: 0;
+  padding: 12px 0;
+}
+
+.consumoLimitsCard {
+  background: #fff;
+  border: 1px solid #ece7dc;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.limitsList {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.limitsRow {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
   font-size: 13px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0eee7;
+}
+
+.limitsRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.limitsRow dt {
   color: #6b6b8a;
-  margin-bottom: 8px;
+}
+
+.limitsRow dd {
+  margin: 0;
+  font-weight: 800;
+  color: #1a1a2e;
+  text-align: right;
+}
+
+@media (max-width: 780px) {
+  .consumoLowerGrid { grid-template-columns: 1fr; }
 }
 
 .progressTrack {
@@ -161,25 +467,6 @@
   font-size: 14px;
   text-align: center;
   padding: 0.5rem 0;
-}
-
-.usageMetric {
-  margin-bottom: 16px;
-}
-
-.usageMetric:last-child {
-  margin-bottom: 0;
-}
-
-.usageMetricHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 13px;
-  color: #6b6b8a;
-  margin-bottom: 8px;
 }
 
 .progressFillNormal {
@@ -315,6 +602,13 @@
   .filterButtonClear {
     width: 100%;
   }
+
+  /* Evita el auto-zoom de iOS Safari al enfocar (dispara con font-size < 16px) */
+  .searchInput,
+  .filterSelect,
+  .betaGateRedeemInput {
+    font-size: 16px;
+  }
 }
 
 /* ── Historial: estados ── */
@@ -351,6 +645,9 @@
   border: 1.5px solid #e8e4dc;
   border-radius: 16px;
   padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .historyItemNew {
@@ -362,23 +659,49 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.historyCardTop {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.historyCardIconGroup {
+.historyCardMain {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
 }
 
-.historyCardIcon {
-  font-size: 22px;
+.historyFileIconWrap {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Los PNG fuente (1254x1254) traen margen transparente integrado alrededor
+   del glifo — medido por canal alfa: contenido real ≈58-63% del ancho y
+   ≈73-82% del alto del lienzo (el TXT es el más alto, ~82%). Con solo
+   width/height:44px + object-fit:contain el glifo se ve pequeño porque ESO
+   es exactamente lo que hay dentro del archivo. scale(1.2) es el máximo
+   seguro sin recortar el glifo del formato más alto (TXT); el
+   overflow:hidden del wrap recorta el sobrante, que es transparente. */
+.historyFileIconImg {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  display: block;
+  transform: scale(1.2);
+  transform-origin: center;
+}
+
+.historyFileIconEmoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.historyFileInfo {
+  min-width: 0;
 }
 
 .historyCardFileName {
@@ -386,10 +709,13 @@
   font-weight: 800;
   font-size: 14px;
   color: #1a1a2e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .historyCardDate {
-  margin: 0;
+  margin: 2px 0 0;
   font-size: 12px;
   color: #9090aa;
 }
@@ -462,9 +788,9 @@
 .actionButtonSecondary {
   padding: 7px 14px;
   border-radius: 10px;
-  border: 1.5px solid #e8e4dc;
-  background: #f5f3ee;
-  color: #4a4a6a;
+  border: 1.5px solid #b8ece0;
+  background: #eafaf6;
+  color: #047a5f;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -588,8 +914,9 @@
 }
 
 .modalSectionTitle {
-  font-family: 'Instrument Serif', serif;
-  font-size: 16px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 15px;
   color: #1a1a2e;
   margin: 16px 0 8px;
 }
@@ -708,4 +1035,155 @@
 .confirmButtonDelete:disabled {
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.badgeNoFormat {
+  background: #fdf6e8;
+  border: 1px dashed #e8cf9c;
+  color: #a3730f;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+}
+
+/* ── Selector de formato de descarga (Historial) ── */
+
+.downloadFormatOptions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.downloadFormatOption {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 8px;
+  border-radius: 12px;
+  border: 1.5px solid #e8e4dc;
+  background: #f9f8f5;
+  color: #1a1a2e;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.downloadFormatOption:hover:not(:disabled) {
+  border-color: #00c9a7;
+  background: #00c9a70d;
+}
+
+.downloadFormatOption:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.downloadFormatOptionIcon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  transform: scale(1.2);
+  transform-origin: center;
+}
+
+/* Pantallas muy angostas: 3 en fila quedan sin espacio útil (p. ej. el
+   estado "Generando…") — pasa a 2+1 en vez de comprimir cada opción. */
+@media (max-width: 360px) {
+  .downloadFormatOptions {
+    flex-wrap: wrap;
+  }
+  .downloadFormatOption {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+  }
+}
+
+/* ── Gate de acceso beta (Fase 3) ── */
+
+.betaGateBox {
+  position: relative;
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px 24px 24px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+
+.betaGateClose {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+}
+
+.betaGateActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0 4px;
+}
+
+.betaGatePaySecondary {
+  padding: 11px;
+  border-radius: 12px;
+  border: 1.5px solid #e8e4dc;
+  background: #fff;
+  color: #4a4a6a;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  transition: all .2s;
+}
+
+.betaGatePaySecondary:hover {
+  background: #f5f3ee;
+}
+
+.betaGateRedeem {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ece7dc;
+  text-align: left;
+}
+
+.betaGateRedeemLabel {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #4a4a6a;
+}
+
+.betaGateRedeemRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.betaGateRedeemInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e8e4dc;
+  font-size: 14px;
+  font-family: 'Nunito', sans-serif;
+  color: #1a1a2e;
+}
+
+.betaGateRedeemInput:disabled {
+  background: #f5f3ee;
+  cursor: not-allowed;
+}
+
+.betaGateRedeemError {
+  margin: 8px 0 0;
+  color: #dc2626;
+  font-size: 12.5px;
 }

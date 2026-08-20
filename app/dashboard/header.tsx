@@ -24,13 +24,14 @@ export default function Header({ displayName, onLogout, onToggleMobileMenu }: He
           <span className={styles.hamburgerLine} />
         </button>
 
-        <Link href="/dashboard" className={styles.headerLogo}>
+        <Link href="/dashboard" className={styles.headerLogoMobile}>
           <span className={styles.headerLogoDot} />
           VozEstudio
         </Link>
       </div>
 
       <div className={styles.headerRight}>
+        <span className={styles.headerUserAvatar}>{displayName.charAt(0).toUpperCase()}</span>
         <span className={styles.headerUser}>{displayName}</span>
         <button type="button" className={styles.headerLogoutButton} onClick={onLogout}>
           Cerrar sesión

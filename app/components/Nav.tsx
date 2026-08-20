@@ -61,39 +61,50 @@ export default function Nav() {
         VozEstudio
       </div>
 
-      <div className={styles.navPills}>
-        {!loadingSession && (
-          session ? (
-            <Link href="/dashboard" className={`${styles.navPill} ${isHome ? styles.navPillActive : ''}`}>
-              Dashboard
-            </Link>
-          ) : (
-            <button
-              className={`${styles.navPill} ${isHome ? styles.navPillActive : ''}`}
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            >
-              Inicio
-            </button>
-          )
-        )}
-
-        <button className={styles.navPill} onClick={() => {
-          if (pathname === '/') document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' })
-          else window.location.href = '/#planes'
+      <div className={styles.navCenterGroup}>
+        <button className={styles.navLink} onClick={() => {
+          if (pathname === '/') window.scrollTo({ top: 0, behavior: 'smooth' })
+          else window.location.href = '/'
         }}>
-          Planes
+          Inicio
         </button>
-        <button className={styles.navPill} onClick={() => {
+        <button className={styles.navLink} onClick={() => {
           if (pathname === '/') document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth' })
           else window.location.href = '/#como-funciona'
         }}>
           Cómo funciona
         </button>
+        <button className={styles.navLink} onClick={() => {
+          if (pathname === '/') document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' })
+          else window.location.href = '/#planes'
+        }}>
+          Planes
+        </button>
+        <button className={styles.navLink} onClick={() => {
+          if (pathname === '/') document.getElementById('nosotros')?.scrollIntoView({ behavior: 'smooth' })
+          else window.location.href = '/#nosotros'
+        }}>
+          Nosotros
+        </button>
+        <button className={styles.navLink} onClick={() => {
+          if (pathname === '/') document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth' })
+          else window.location.href = '/#faq'
+        }}>
+          Preguntas frecuentes
+        </button>
+      </div>
+
+      <div className={styles.navActions}>
+        {!loadingSession && session && (
+          <Link href="/dashboard" className={`${styles.navBtnGhost} ${isHome ? styles.navBtnGhostActive : ''}`}>
+            Dashboard
+          </Link>
+        )}
 
         {!loadingSession && (
           session ? (
             <div ref={menuRef} style={{ position: 'relative' }}>
-              <button className={styles.navPill} onClick={() => setAccountOpen(v => !v)}>
+              <button className={styles.navBtnSolid} onClick={() => setAccountOpen(v => !v)}>
                 Mi cuenta
               </button>
               {accountOpen && (
@@ -118,7 +129,7 @@ export default function Nav() {
               )}
             </div>
           ) : (
-            <button className={styles.navPill} onClick={handleGoogleLogin}>
+            <button className={styles.navBtnSolid} onClick={handleGoogleLogin}>
               Iniciar sesión
             </button>
           )

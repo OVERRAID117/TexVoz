@@ -47,6 +47,11 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onClo
     <aside
       className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ''} ${mobileOpen ? styles.sidebarMobileOpen : ''}`}
     >
+      <Link href="/dashboard" className={styles.sidebarLogo} title={collapsed ? 'VozEstudio' : undefined}>
+        <span className={styles.sidebarLogoDot} />
+        {!collapsed && 'VozEstudio'}
+      </Link>
+
       <nav className={styles.sidebarNav}>
         {NAV_ITEMS.map(item => {
           if (item.disabled) {
@@ -69,7 +74,12 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onClo
               <Link
                 key={item.label}
                 href={item.href}
-                onClick={onCloseMobile}
+                onClick={() => {
+                  onCloseMobile()
+                  if (item.href === '/dashboard') {
+                    window.dispatchEvent(new Event('texvoz:dashboard-home'))
+                  }
+                }}
                 title={collapsed ? item.label : undefined}
                 className={`${styles.sidebarLink} ${isActive ? styles.sidebarLinkActive : ''}`}
               >
